@@ -39,9 +39,12 @@ export async function storePickedPdf(test, file) {
   const doc = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
   const last = test.modules.at(-1).pages[1];
   if (doc.numPages < last) throw new Error(`That PDF has ${doc.numPages} pages; Practice Test ${test.id} has at least ${last}.`);
+  // Each PDF names itself ("SAT Practice Test #8") in its title metadata and on page 1.
+  const title = (await doc.getMetadata().catch(() => null))?.info?.Title || '';
   const text = (await (await doc.getPage(1)).getTextContent()).items.map(i => i.str).join(' ');
-  if (/Practice\s*Test\s*\d+/i.test(text) && !new RegExp(`Practice\\s*Test\\s*${test.id}\\b`, 'i').test(text))
-    throw new Error(`That looks like a different practice test. Pick sat-practice-test-${test.id}-digital.pdf.`);
+  const found = (title.match(/Practice\s*Test\s*#?\s*(\d+)/i) || text.match(/Practice\s*Test\s*#?\s*(\d+)/i))?.[1];
+  if (found && +found !== test.id)
+    throw new Error(`That's Practice Test ${found}. Pick sat-practice-test-${test.id}-digital.pdf.`);
   await fileSet('pdf:' + test.id, file);
 }
 
