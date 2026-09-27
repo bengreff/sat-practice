@@ -1,4 +1,4 @@
-import { loadState, onSync, onServer, idbGetAll, idbPutMany, metaGet, metaSet } from './store.js';
+import { loadState, onSync, onServer, onWebsite, linked, api, findLocalApp, setWantsLink, idbGetAll, idbPutMany, metaGet, metaSet } from './store.js';
 import { bank, addQuestions } from './data.js';
 import { syncBank } from './bank.js';
 import { loadOfficial } from './scoring.js';
@@ -64,18 +64,19 @@ async function resync() {
 // Local app: the first browser to download the bank leaves a copy with the server for other browsers here.
 async function saveSeed() {
   const questions = await idbGetAll('questions');
-  await fetch('api/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  await fetch(api('api/seed'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind: 'sat-practice-questions', exported: Date.now(), questions }) }).catch(() => {});
 }
 async function loadSeed() {
   try {
-    const r = await fetch('api/seed', { cache: 'no-store' });
+    const r = await fetch(api('api/seed'), { cache: 'no-store' });
     if (!r.ok) return;
     const data = await r.json();
     await idbPutMany('questions', data.questions);
     addQuestions(data.questions);
     await metaSet('bankSynced', { t: data.exported, total: data.questions.length, failed: 0 });
-  } catch {}
+    return true;
+  } catch { return false; }
 }
 
 // ---------- keyboard ----------
@@ -90,17 +91,28 @@ document.addEventListener('keydown', e => {
   else if (e.key.length === 1 && ctl.key) ctl.key(e.key);
 });
 
-onSync(({ serverOk }) => { $('#sync').textContent = onServer && !serverOk ? 'Not saved to disk (local app offline), retrying' : ''; });
+onSync(({ serverOk }) => {
+  const el = $('#sync');
+  el.textContent = onServer && !serverOk ? 'Not saved to disk (local app offline), retrying' : linked ? 'Connected to your local app' : '';
+  el.classList.toggle('linked', linked && serverOk);
+});
 
 // ---------- boot ----------
 (async () => {
+  if (onWebsite && new URLSearchParams(location.search).has('link')) { setWantsLink(true); history.replaceState(null, '', location.pathname); }
+  if (onWebsite) await findLocalApp();
   await loadState();
   await loadOfficial().catch(e => console.warn('official tests', e));
   addQuestions(await idbGetAll('questions'));
-  if (onServer && !bank.Q.length) await loadSeed();
+  // with a local app: take its saved question bank if this browser has fewer questions
+  if (onServer) {
+    const info0 = await metaGet('bankSynced');
+    if (!bank.Q.length || (linked && bank.Q.length < (info0?.total || 3700))) await loadSeed();
+  }
   const start = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'practice';
   show(start);
   const info = await metaGet('bankSynced');
   if (!info || bank.Q.length < info.total - info.failed || Date.now() - info.t > 7 * 864e5) resync();
+  else if (linked) fetch(api('api/seed-info')).then(r => r.json()).then(i => { if (!i.exists) saveSeed(); }).catch(() => {});
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

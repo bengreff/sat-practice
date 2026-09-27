@@ -1,5 +1,5 @@
 // Data tab: question bank status, progress export/import, stored PDFs, reset, installing elsewhere.
-import { state, onServer, exportState, importState, resetProgress, idbClear, metaGet } from './store.js';
+import { state, onServer, onWebsite, linked, wantsLink, setWantsLink, exportState, importState, resetProgress, idbClear, metaGet } from './store.js';
 import { bank } from './data.js';
 import { officialTests } from './scoring.js';
 import { cachedPdf } from './official.js';
@@ -23,6 +23,13 @@ export async function renderData(view, { resync, reload }) {
         To skip that on another device, export the questions here and import the file there.</p>
       <p><button class="btn-lite" id="d-bank-export">Export questions file</button>
         <label class="btn-lite filebtn">Import questions file<input type="file" id="d-bank-import" accept=".json,application/json" hidden></label></p></div>
+    ${onWebsite ? `<div class="panel"><h3>Local app on this computer</h3>
+      <p>${linked ? '<b>Connected.</b> This website is using your local app\'s progress, questions and test PDFs.'
+        : wantsLink() ? 'Set to connect, but the local app isn\'t running. Start it, then reload this page.'
+        : 'If you installed the local app on this computer, connect it to use the same progress and questions here. Your browser may ask to allow access to apps on this device.'}</p>
+      <p><button class="btn-lite" id="d-link">${wantsLink() ? 'Disconnect' : 'Connect to the local app'}</button></p></div>`
+    : `<div class="panel"><h3>Website</h3><p>Use the same progress and questions on the website version:
+      <a href="${WEB_URL}?link=1" target="_blank" rel="noopener">open it connected to this app</a> (needed once per browser).</p></div>`}
     <div class="panel"><h3>Progress</h3>
       <p>${state.history.length} answers, ${state.tests.filter(t => t.finished).length} completed tests.
         ${onServer ? 'Saved to <code>progress.json</code> by the local app (and in this browser).' : 'Saved in this browser.'}
@@ -43,6 +50,7 @@ export async function renderData(view, { resync, reload }) {
     <p class="muted small">Not affiliated with or endorsed by College Board. SAT is a registered trademark of College Board.
       Source: <a href="https://github.com/${REPO}">github.com/${REPO}</a></p>`;
   $('#d-sync', view).onclick = () => resync();
+  $('#d-link', view)?.addEventListener('click', () => { setWantsLink(!wantsLink()); location.reload(); });
   $('#d-export', view).onclick = exportState;
   $('#d-bank-export', view).onclick = async () => toast(`Exported ${await exportBank()} questions.`);
   $('#d-bank-import', view).onchange = async e => {

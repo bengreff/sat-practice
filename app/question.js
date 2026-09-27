@@ -63,7 +63,6 @@ export function wireBody(root, q, { onChange = () => {}, initial = null, struck 
 // Practice card: answer → instant check → explanation + notes. entry = existing attempt to show revealed.
 export function mountPractice(card, q, { entry = null, prior = [], onNext, nextLabel = 'Next', mode = 'practice', onAnswered = () => {} }) {
   clearInterval(card._tick);
-  const shownAt = Date.now();
   card.innerHTML = `
     <div class="meta">${metaLine(q)}</div>
     <div class="q-tools"><button class="tool flag" title="Flag for review">⚑ Flag</button>
@@ -82,13 +81,22 @@ export function mountPractice(card, q, { entry = null, prior = [], onNext, nextL
   flag.onclick = () => { setFlag(q.id, !isFlagged(q.id)); paintFlag(); };
   paintFlag();
   el('.elim').onchange = e => card.classList.toggle('elim-on', e.target.checked);
+  // Time counts only while this question is on screen in a visible, focused window.
   const elapsed = el('.elapsed');
-  card._tick = setInterval(() => { if (!done) elapsed.textContent = fmtSec((Date.now() - shownAt) / 1000); }, 1000);
+  let activeMs = 0, lastTick = Date.now();
+  const onScreen = () => !document.hidden && document.hasFocus() && card.isConnected && card.offsetParent !== null;
+  card._tick = setInterval(() => {
+    const now = Date.now();
+    if (!done && onScreen()) activeMs += Math.min(now - lastTick, 2000);   // a sleeping laptop adds nothing
+    lastTick = now;
+    if (!card.isConnected) return clearInterval(card._tick);
+    if (!done) elapsed.textContent = fmtSec(activeMs / 1000);
+  }, 1000);
 
   function check() {
     if (done || !body.answer) return;
     const e = { id: q.id, answer: body.answer, correct: isCorrect(q, body.answer), t: Date.now(),
-      sec: Math.round((Date.now() - shownAt) / 1000), mode };
+      sec: Math.round(activeMs / 1000), mode };
     state.history.push(e); save();
     onAnswered(e);
     reveal(e);

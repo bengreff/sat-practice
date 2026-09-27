@@ -1,6 +1,6 @@
 // Official College Board practice tests 4–11 (the released nondigital-format PDFs): the real test pages are shown
 // next to an answer sheet, timed per module, and scored with that test's own answer key and conversion table.
-import { state, save, onServer, fileGet, fileSet } from './store.js';
+import { state, save, onServer, api, fileGet, fileSet } from './store.js';
 import { officialTests } from './scoring.js';
 import { $, esc, uid, fmtDay, sprCorrect, keys, toast } from './util.js';
 import { countdown, toggleCalculator, toggleReference, closeTools } from './tools.js';
@@ -21,7 +21,7 @@ const BREAK_SECONDS = 600;
 export async function cachedPdf(test) { return fileGet('pdf:' + test.id); }
 export async function fetchPdf(test) {
   const name = test.pdf.split('/').pop();
-  const urls = [...(onServer ? [`api/cb/${name}`] : []), test.pdf];
+  const urls = [...(onServer ? [api(`api/cb/${name}`)] : []), test.pdf];
   for (const u of urls) {
     try {
       const r = await fetch(u);

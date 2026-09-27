@@ -18,6 +18,9 @@ SEED = os.path.join(ROOT, 'cache', 'questions.json')   # question bank saved by 
 PDF_NAME = re.compile(r'^(scoring-)?sat-practice-test-\d{1,2}(-answers)?-digital\.pdf$')
 CB_PDF = 'https://satsuite.collegeboard.org/media/pdf/'
 KEEP_BACKUPS = 30
+# The published website may use this local app's data (progress, questions, PDFs) when the user connects them.
+WEB_ORIGINS = {'https://bengreff.github.io'}
+VERSION = '1.1.0'
 LOCK = threading.Lock()
 
 
@@ -100,13 +103,29 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header('Cache-Control', 'no-store')  # always serve the current app files
+        origin = self.headers.get('Origin')
+        if origin in WEB_ORIGINS and self.path.startswith('/api/'):
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Vary', 'Origin')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.send_header('Access-Control-Allow-Private-Network', 'true')
         super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(204 if self.headers.get('Origin') in WEB_ORIGINS else 403)
+        self.send_header('Content-Length', '0')
+        self.end_headers()
 
     def do_GET(self):
         path = self.path.split('?')[0]
         if path == '/api/state':
             with LOCK:
                 return self._send(json.dumps(read_state()).encode(), 'application/json')
+        if path == '/api/ping':
+            return self._send(json.dumps({'app': 'sat-practice', 'version': VERSION}).encode(), 'application/json')
+        if path == '/api/seed-info':
+            return self._send(json.dumps({'exists': os.path.exists(SEED)}).encode(), 'application/json')
         if path == '/api/seed':
             if not os.path.exists(SEED):
                 return self.send_error(404)

@@ -75,7 +75,26 @@ export function upgrade(s) {
 }
 
 // ---------- persistence ----------
-export const onServer = location.protocol.startsWith('http') && !location.hostname.endsWith('github.io');
+// onServer: progress is kept by a local app, either the one serving this page, or (on the website) the local app
+// on this computer once the user has connected them. `api()` builds URLs for whichever it is.
+export const onWebsite = location.hostname.endsWith('github.io');
+export let onServer = location.protocol.startsWith('http') && !onWebsite;
+export let linked = false;
+let apiBase = '';
+export const api = path => apiBase + path;
+const LINK = 'sat-practice-link-local';
+export const wantsLink = () => { try { return localStorage.getItem(LINK) === '1'; } catch { return false; } };
+export function setWantsLink(on) { try { on ? localStorage.setItem(LINK, '1') : localStorage.removeItem(LINK); } catch {} }
+export async function findLocalApp() {
+  if (!onWebsite || !wantsLink()) return false;
+  for (const port of [8617, 8618, 8619, 8620]) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/api/ping`, { signal: AbortSignal.timeout(1500) });
+      if (r.ok && (await r.json()).app === 'sat-practice') { apiBase = `http://127.0.0.1:${port}/`; onServer = linked = true; return true; }
+    } catch {}
+  }
+  return false;
+}
 let serverOk = false, pending = false, inflight = false;
 const listeners = new Set();
 export const onSync = fn => listeners.add(fn);
@@ -86,7 +105,7 @@ export async function loadState() {
   try { local = JSON.parse(localStorage.getItem(LS)); } catch {}
   if (onServer) {
     try {
-      const r = await fetch('api/state', { cache: 'no-store' });
+      const r = await fetch(api('api/state'), { cache: 'no-store' });
       if (r.ok) { server = await r.json(); serverOk = true; }
     } catch {}
   }
@@ -99,13 +118,13 @@ export function replaceState(s) { state = s; save(); }
 
 export function save() {
   try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) { console.warn('localStorage full?', e); }
-  if (serverOk || onServer) { pending = true; flush(); }
+  if (onServer) { pending = true; flush(); }
 }
 async function flush() {
   if (inflight || !pending || !onServer) return;
   inflight = true; pending = false;
   try {
-    const r = await fetch('api/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) });
+    const r = await fetch(api('api/state'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) });
     if (!r.ok) throw new Error(r.status);
     serverOk = true;
   } catch { pending = true; serverOk = false; }
@@ -115,13 +134,14 @@ async function flush() {
 }
 setInterval(flush, 5000);
 addEventListener('pagehide', () => {
-  if (onServer && pending) navigator.sendBeacon('api/state', new Blob([JSON.stringify(state)], { type: 'application/json' }));
+  // text/plain keeps the beacon a simple request, which is allowed cross-origin; the server parses the body as JSON
+  if (onServer && pending) navigator.sendBeacon(api('api/state'), new Blob([JSON.stringify(state)], { type: 'text/plain' }));
 });
 
 export async function resetProgress() {
   const now = Date.now();
   if (onServer) {
-    const r = await fetch('api/reset', { method: 'POST', body: '{}' });
+    const r = await fetch(api('api/reset'), { method: 'POST', body: '{}' });
     if (!r.ok) throw new Error('server reset failed');
   }
   state = { ...emptyState(), resetAt: now, settings: state.settings, profile: state.profile };
