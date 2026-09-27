@@ -1,4 +1,4 @@
-import { loadState, onSync, onServer, idbGetAll, metaGet } from './store.js';
+import { loadState, onSync, onServer, idbGetAll, idbPutMany, metaGet, metaSet } from './store.js';
 import { bank, addQuestions } from './data.js';
 import { syncBank } from './bank.js';
 import { loadOfficial } from './scoring.js';
@@ -54,10 +54,28 @@ async function resync() {
     });
     paint();
     setTimeout(() => bar.hidden = true, 2500);
+    if (onServer) saveSeed();
   } catch (e) {
     label.textContent = `Could not reach the College Board question bank (${e.message}). Check your connection; retry from the Data tab.`;
   }
   syncing = false;
+}
+
+// Local app: the first browser to download the bank leaves a copy with the server for other browsers here.
+async function saveSeed() {
+  const questions = await idbGetAll('questions');
+  await fetch('api/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'sat-practice-questions', exported: Date.now(), questions }) }).catch(() => {});
+}
+async function loadSeed() {
+  try {
+    const r = await fetch('api/seed', { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json();
+    await idbPutMany('questions', data.questions);
+    addQuestions(data.questions);
+    await metaSet('bankSynced', { t: data.exported, total: data.questions.length, failed: 0 });
+  } catch {}
 }
 
 // ---------- keyboard ----------
@@ -79,6 +97,7 @@ onSync(({ serverOk }) => { $('#sync').textContent = onServer && !serverOk ? 'Not
   await loadState();
   await loadOfficial().catch(e => console.warn('official tests', e));
   addQuestions(await idbGetAll('questions'));
+  if (onServer && !bank.Q.length) await loadSeed();
   const start = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'practice';
   show(start);
   const info = await metaGet('bankSynced');

@@ -14,6 +14,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(ROOT, 'progress.json')
 BACKUPS = os.path.join(ROOT, 'backups')
 PDF_CACHE = os.path.join(ROOT, 'cache')
+SEED = os.path.join(ROOT, 'cache', 'questions.json')   # question bank saved by the first browser to download it
 PDF_NAME = re.compile(r'^(scoring-)?sat-practice-test-\d{1,2}(-answers)?-digital\.pdf$')
 CB_PDF = 'https://satsuite.collegeboard.org/media/pdf/'
 KEEP_BACKUPS = 30
@@ -106,6 +107,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if path == '/api/state':
             with LOCK:
                 return self._send(json.dumps(read_state()).encode(), 'application/json')
+        if path == '/api/seed':
+            if not os.path.exists(SEED):
+                return self.send_error(404)
+            with open(SEED, 'rb') as f:
+                return self._send(f.read(), 'application/json')
         if path.startswith('/api/cb/'):
             name = path[len('/api/cb/'):]
             if not PDF_NAME.match(name):
@@ -119,6 +125,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
+        if self.path == '/api/seed':
+            n = int(self.headers.get('Content-Length', 0))
+            if n > 300_000_000:
+                return self.send_error(413)
+            data = self.rfile.read(n)
+            if json.loads(data).get('kind') != 'sat-practice-questions':
+                return self.send_error(400)
+            os.makedirs(os.path.dirname(SEED), exist_ok=True)
+            with open(SEED + '.tmp', 'wb') as f:
+                f.write(data)
+            os.replace(SEED + '.tmp', SEED)
+            return self._send(b'{"ok":true}', 'application/json')
         try:
             body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}')
         except ValueError:
