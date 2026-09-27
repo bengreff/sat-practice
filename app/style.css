@@ -110,6 +110,10 @@ math { font-size:1.08em; }
 .notes:focus { outline:none; border-color:var(--accent); }
 .rationale { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); font-size:15px; }
 
+/* welcome */
+.welcome ul { padding-left:20px; margin:8px 0 12px; font-size:15px; }
+.welcome li { margin:4px 0; }
+
 /* practice settings */
 .presets { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
 .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }

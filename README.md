@@ -6,6 +6,8 @@ and official scoring.
 
 **Open it in any browser, phone included:** **https://bengreff.github.io/sat-practice/**
 
+![Practice question with difficulty band, flag and answer elimination](docs/practice.png)
+
 Or install the local app (saves progress to a file and fetches the official test PDFs automatically):
 
 | System | Run this |
@@ -17,6 +19,10 @@ The installer puts the app in `~/SATPractice`, adds a desktop launcher, and star
 the app without touching your progress. Python 3.8+ is required (the Windows installer installs it if missing).
 
 ## Features
+
+| Adaptive mock test with Desmos | Official practice test with answer sheet | Stats |
+|---|---|---|
+| ![Mock test](docs/mock.png) | ![Official test](docs/official.png) | ![Stats](docs/stats.png) |
 
 **Practice**
 - Random questions from a pool you define: sections, difficulty bands 1–7, domains and skills (each with a focus
@@ -37,7 +43,7 @@ the app without touching your progress. Python 3.8+ is required (the Windows ins
   navigator, timers that survive reloads, a 10-minute break, save-and-resume.
 
 **Stats**
-- Accuracy, streaks, time per question, estimated section and total scores.
+- Accuracy, streaks, time per question (counted only while you're on the question), estimated section and total scores.
 - Charts of accuracy by difficulty band, accuracy over time, and time per question over time.
 - Accuracy and coverage by section, domain and skill; weakest skills; history of every test.
 
@@ -48,6 +54,14 @@ the app without touching your progress. Python 3.8+ is required (the Windows ins
 **Data**
 - Export and import progress files to move between devices (imports merge; nothing is lost).
 - Export and import the downloaded questions so another device doesn't need to download them again.
+
+## Website + local app on the same computer
+
+If the local app is running, the website can use its progress, questions and official test PDFs, so both show the
+same data. Connect once per browser: in the local app open **Data → open it connected to this app**, or on the
+website open **Data → Connect to the local app**. Chrome asks once to allow access to apps on your device. After
+that, opening the website while the local app runs shows *Connected to your local app* in the header, and every
+answer is saved to the local `progress.json`. Only the published website is allowed to connect.
 
 ## Where the content comes from
 

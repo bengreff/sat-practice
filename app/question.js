@@ -67,7 +67,7 @@ export function mountPractice(card, q, { entry = null, prior = [], onNext, nextL
     <div class="meta">${metaLine(q)}</div>
     <div class="q-tools"><button class="tool flag" title="Flag for review">⚑ Flag</button>
       <label class="tool"><input type="checkbox" class="elim"> Eliminate choices</label>
-      <span class="elapsed" title="Time on this question"></span></div>
+      <span class="elapsed" title="Time on this question (counts only while you're on this page)">0:00</span></div>
     <div class="q-body">${bodyHTML(q)}</div>
     <div class="actions"><button class="btn go" disabled>Check</button><span class="verdict"></span></div>
     <div class="prior" hidden></div>

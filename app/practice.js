@@ -53,15 +53,28 @@ export function renderPractice(view) {
   if (!view.dataset.built) {
     view.dataset.built = 1;
     view.innerHTML = `
+      ${welcomed() ? '' : `<div class="panel welcome" id="p-welcome"><h3>Welcome to SAT Practice</h3>
+        <p>Every question from the College Board's SAT Suite Question Bank, sorted into seven difficulty bands, plus mock tests
+          and the official practice tests.</p>
+        <ul>
+          <li><b>Practice</b>: answer, check, read the official explanation. Keys: A–D, Enter, F to flag.
+            Use <b>Practice settings</b> to choose bands, domains and skills.</li>
+          <li><b>Tests</b>: adaptive mock tests and College Board practice tests 4–11, timed and scored.</li>
+          <li><b>Plan</b>: enter a score report to get a practice setup aimed at your weak spots.</li>
+          <li>Questions download in the background the first time (about 20 minutes), hardest first. You can start right away.</li>
+        </ul>
+        <button class="btn" id="p-welcome-ok">Start practicing</button></div>`}
       <div class="bar-top"><span id="p-summary"></span><button class="btn-lite" id="p-toggle">Practice settings</button></div>
       <div class="panel" id="p-settings" hidden></div>
       <div class="card" id="pcard"></div>
       <div class="hint">Keys: A–D select · Enter check / next · F flag</div>`;
+    $('#p-welcome-ok')?.addEventListener('click', () => { try { localStorage.setItem('sat-practice-welcomed', '1'); } catch {} $('#p-welcome').remove(); });
     $('#p-toggle').onclick = () => { const p = $('#p-settings'); p.hidden = !p.hidden; if (!p.hidden) renderSettings(); };
   }
   if (!current || !$('#pcard').innerHTML) nextQuestion();
   summary();
 }
+const welcomed = () => { try { return localStorage.getItem('sat-practice-welcomed') === '1' || state.history.length > 0; } catch { return true; } };
 export function refreshPractice() { if (!$('#p-settings')?.hidden) renderSettings(); summary(); }
 
 function summary() {
