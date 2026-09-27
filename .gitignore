@@ -1,0 +1,7 @@
+progress.json
+progress.json.tmp
+backups/
+cache/
+server.log
+__pycache__/
+.DS_Store

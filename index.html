@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAT Practice</title>
+<meta name="description" content="Practice with every question in the College Board SAT question bank, adaptive mock tests and the official practice tests.">
+<meta name="theme-color" content="#1d4ed8">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="app/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-inner">
+    <h1>SAT Practice</h1>
+    <nav>
+      <button data-v="practice">Practice</button>
+      <button data-v="tests">Tests</button>
+      <button data-v="stats">Stats</button>
+      <button data-v="browse">Browse</button>
+      <button data-v="plan">Plan</button>
+      <button data-v="data">Data</button>
+    </nav>
+    <span id="sync"></span>
+  </div>
+  <div id="dl" hidden><div class="dl-fill"></div><div class="wrap dl-text"></div></div>
+</header>
+<main class="wrap">
+  <section id="v-practice" hidden></section>
+  <section id="v-tests" hidden></section>
+  <section id="v-stats" hidden></section>
+  <section id="v-browse" hidden></section>
+  <section id="v-plan" hidden></section>
+  <section id="v-data" hidden></section>
+</main>
+<noscript>This app needs JavaScript.</noscript>
+<script type="module" src="app/main.js"></script>
+</body>
+</html>
