@@ -30,14 +30,25 @@ export const ROUTE_THRESHOLD = 0.6;   // share of module 1 correct needed for th
 export const EASY_ROUTE_CAP = 650;    // approximate ceiling after the easier module 2 (estimate)
 export const bandGroup = b => b <= 3 ? 'E' : b <= 5 ? 'M' : String(b);
 
-export function mockScore(section, m1, m2) {
-  const right = m1.right + m2.right, total = m1.total + m2.total;
-  let scaled = scaledFromFraction(section === 'rw' ? 'rw' : 'math', right / total);
-  if (m2.route === 'easy') scaled = Math.min(scaled, EASY_ROUTE_CAP);
-  return { right, total, scaled, route: m2.route };
+// An adaptive test's raw fraction understates ability on the harder route (its questions are harder than a paper
+// test's), so estimate accuracy per difficulty group, project it onto the broad paper-test mix, then convert.
+function paperFraction(items) {
+  const overall = (items.filter(x => x.correct).length + 1) / (items.length + 2);
+  let f = 0;
+  for (const [g, w] of Object.entries(MIX.m1)) {
+    const es = items.filter(x => bandGroup(x.band) === g);
+    f += w * (es.filter(x => x.correct).length + 3 * overall) / (es.length + 3);   // shrink small groups toward overall
+  }
+  return f;
+}
+export function mockScore(section, items, route) {
+  const right = items.filter(x => x.correct).length;
+  let scaled = scaledFromFraction(section, paperFraction(items));
+  if (route === 'easy') scaled = Math.min(scaled, EASY_ROUTE_CAP);
+  return { right, total: items.length, scaled, route };
 }
 
-// Expected section score from per-band practice accuracy (smoothed), simulating one adaptive test.
+// Expected section score from per-band practice accuracy (smoothed).
 export function estimateFromPractice(entries) {
   if (entries.length < 20) return null;
   const overall = (entries.filter(e => e.correct).length + 1) / (entries.length + 2);
@@ -46,7 +57,7 @@ export function estimateFromPractice(entries) {
     const es = entries.filter(e => bandGroup(e.band) === g);
     acc[g] = (es.filter(e => e.correct).length + 4 * overall) / (es.length + 4); // shrink toward overall
   }
-  const exp = mix => Object.entries(mix).reduce((s, [g, w]) => s + w * acc[g], 0);
-  const f1 = exp(MIX.m1), route = f1 >= ROUTE_THRESHOLD ? 'hard' : 'easy', f2 = exp(MIX[route]);
-  return { f: (f1 + f2) / 2, route };
+  // same projection as mockScore: accuracy per difficulty group on the broad paper-test mix
+  const f = Object.entries(MIX.m1).reduce((sum, [g, w]) => sum + w * acc[g], 0);
+  return { f, route: f >= ROUTE_THRESHOLD ? 'hard' : 'easy' };
 }

@@ -176,8 +176,9 @@ function finish(t) {
   }
   t.score = {};
   for (const sec of t.parts) {
-    const [m1, m2] = t.modules.filter(m => m.sec === sec);
-    t.score[sec] = mockScore(sec, { right: m1.right, total: m1.ids.length }, { right: m2.right, total: m2.ids.length, route: m2.route });
+    const mods = t.modules.filter(m => m.sec === sec);
+    const items = mods.flatMap(m => m.ids.map(id => { const q = bank.byId.get(id); return { band: q.band, correct: isCorrect(q, m.ans[id]) }; }));
+    t.score[sec] = mockScore(sec, items, mods[1].route);
   }
   if (t.parts.length === 2) t.score.total = t.score.rw.scaled + t.score.math.scaled;
   t.finished = now;
