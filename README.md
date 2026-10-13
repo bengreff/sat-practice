@@ -36,10 +36,10 @@ the app without touching your progress. Python 3.8+ is required (the Windows ins
 **Tests**
 - *Adaptive practice tests* assembled from the bank in the digital SAT format: Reading and Writing (2 × 27 questions,
   32 min each) and Math (2 × 22, 35 min each), with a harder or easier second module depending on the first.
-- *Quick score check*: just the harder second module of one section, with module 1 counted as all correct.
 - *Official practice tests 4–11*: the College Board's released tests, shown page by page next to an answer sheet,
   timed like the paper format (39 / 43 minutes per module), and scored with each test's own answer key and
   raw-to-scaled conversion table.
+- *Module 2 only*: a quick section score from one official test's second module, with module 1 counted as all correct.
 - Test-day tools: Desmos graphing calculator, math reference sheet, mark for review, answer elimination, question
   navigator, timers that survive reloads, a 10-minute break, save-and-resume.
 

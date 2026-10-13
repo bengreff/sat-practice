@@ -48,13 +48,16 @@ export async function storePickedPdf(test, file) {
   await fileSet('pdf:' + test.id, file);
 }
 
-export function startOfficial(test) {
-  const t = { uid: uid(), kind: 'official', testId: test.id, name: test.name, started: Date.now(), u: Date.now(),
-    stage: { i: 0, phase: 'module' },
-    modules: test.modules.map(m => ({ sec: m.section, n: m.module, ans: {}, marks: {}, remaining: m.minutes * 60, submitted: false })) };
+// only: 'rw' | 'math' takes just that section's module 2, with module 1 counted as all correct.
+export function startOfficial(test, only = null) {
+  const mods = test.modules.map((m, si) => ({ sec: m.section, n: m.module, si, ans: {}, marks: {}, remaining: m.minutes * 60, submitted: false }));
+  const t = { uid: uid(), kind: 'official', testId: test.id, name: only ? `${test.name}: ${SECNAME[only]} module 2` : test.name,
+    started: Date.now(), u: Date.now(), stage: { i: 0, phase: 'module' },
+    modules: only ? mods.filter(m => m.sec === only && m.n === 2) : mods, ...(only && { only }) };
   state.tests.push(t); save();
   return t;
 }
+const specOf = (t, test, mi) => test.modules[t.modules[mi].si ?? mi];
 const persist = t => { t.u = Date.now(); save(); };
 const isMC = key => /^[A-D]$/.test(key[0]);
 const correct = (key, a) => a != null && a !== '' && (isMC(key) ? key.includes(a) : sprCorrect(a, key));
@@ -68,7 +71,7 @@ export async function runOfficial(view, t, onExit) {
   if (t.stage.phase === 'break') return showBreak(view, t, test, onExit);
   const blob = await cachedPdf(test);
   if (!blob) { onExit(); return toast('The test PDF is not on this device yet. Open the test from the list to get it.'); }
-  const mi = t.stage.i, m = t.modules[mi], spec = test.modules[mi], key = spec.key;
+  const mi = t.stage.i, m = t.modules[mi], spec = specOf(t, test, mi), key = spec.key;
   view.innerHTML = `<div class="runner official">
     <div class="run-top"><div class="run-title">${esc(test.name)} · ${SECNAME[m.sec]}, Module ${m.n}</div><div class="timer"></div>
       <div class="run-tools">${m.sec === 'math' ? '<button class="btn-lite" data-t="calc">Calculator</button><button class="btn-lite" data-t="ref">Reference</button>' : ''}
@@ -161,28 +164,36 @@ function showBreak(view, t, test, onExit) {
 }
 
 function finish(t, test) {
+  if (t.only) {
+    const s = t.only, m1 = test.modules.find(m => m.section === s && m.module === 1).key.length, raw = m1 + t.modules[0].right;
+    t.score = { [s]: { raw, range: test.conversion[s][raw], m1 }, total: null };
+    t.finished = Date.now();
+    return;
+  }
   const raw = s => t.modules.filter(m => m.sec === s).reduce((a, m) => a + m.right, 0);
   const rw = test.conversion.rw[raw('rw')], math = test.conversion.math[raw('math')];
   t.score = { rw: { raw: raw('rw'), range: rw }, math: { raw: raw('math'), range: math }, total: [rw[0] + math[0], rw[1] + math[1]] };
   t.finished = Date.now();
 }
 
-export function officialMid(t) { return t.score ? Math.round((t.score.total[0] + t.score.total[1]) / 2) : null; }
+export function officialMid(t) { return t.score?.total ? Math.round((t.score.total[0] + t.score.total[1]) / 2) : null; }
 
 function showResults(view, t, test, onExit) {
   keys.ctl = null;
   const s = t.score, range = r => `${r[0]}–${r[1]}`;
   view.innerHTML = `<div class="results">
     <div class="bar-top"><button class="btn-lite back">← Tests</button><span>${esc(t.name)} · ${fmtDay(t.started)}</span></div>
-    <div class="tiles">
+    <div class="tiles">${t.only ? `
+      <div class="tile hero"><div class="k">${SECNAME[t.only]} score range</div><div class="v">${range(s[t.only].range)}</div>
+        <div class="k">${s[t.only].raw}/${2 * s[t.only].m1} right: module 1 counted ${s[t.only].m1}/${s[t.only].m1}, module 2 ${t.modules[0].right}/${s[t.only].m1}</div></div>` : `
       <div class="tile hero"><div class="k">Total score range</div><div class="v">${range(s.total)}</div></div>
       <div class="tile"><div class="k">Reading and Writing</div><div class="v">${range(s.rw.range)}</div><div class="k">${s.rw.raw}/66 right</div></div>
-      <div class="tile"><div class="k">Math</div><div class="v">${range(s.math.range)}</div><div class="k">${s.math.raw}/54 right</div></div>
+      <div class="tile"><div class="k">Math</div><div class="v">${range(s.math.range)}</div><div class="k">${s.math.raw}/54 right</div></div>`}
     </div>
-    <p class="muted small">Scored with this test's official answer key and conversion table.
+    <p class="muted small">Scored with this test's official answer key and conversion table${t.only ? ', with module 1 (not taken) counted as all correct' : ''}.
       <a href="${test.explanations}" target="_blank" rel="noopener">Answer explanations (College Board PDF)</a></p>
-    ${t.modules.map((m, mi) => `<h3>${SECNAME[m.sec]}, module ${m.n}: ${m.right}/${test.modules[mi].key.length}</h3>
-      <div class="keygrid">${test.modules[mi].key.map((k, i) => { const a = m.ans[i + 1], ok = correct(k, a); return `
+    ${t.modules.map((m, mi) => `<h3>${SECNAME[m.sec]}, module ${m.n}: ${m.right}/${specOf(t, test, mi).key.length}</h3>
+      <div class="keygrid">${specOf(t, test, mi).key.map((k, i) => { const a = m.ans[i + 1], ok = correct(k, a); return `
         <div class="${ok ? 'ok' : 'bad'}"><b>${i + 1}</b> ${ok ? '✓' : '✗'} <span>you ${esc(a ?? '—')}</span> <span class="muted">key ${esc(k.join(' / '))}</span>${m.marks[i + 1] ? ' ⚑' : ''}</div>`; }).join('')}</div>`).join('')}
   </div>`;
   $('.back', view).onclick = onExit;

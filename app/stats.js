@@ -48,7 +48,7 @@ export function renderStats(view, { browseSkill }) {
     <h3>Tests</h3>
     ${tests.length ? `<div class="table-wrap"><table class="data"><tr><th>Date</th><th>Test</th><th>R&amp;W</th><th>Math</th><th>Total</th></tr>
       ${tests.map(t => { const s = t.score, r = x => `${x[0]}–${x[1]}`; return t.kind === 'official'
-        ? `<tr><td>${fmtDay(t.finished)}</td><td>${esc(t.name)}</td><td>${r(s.rw.range)}</td><td>${r(s.math.range)}</td><td><b>${officialMid(t)}</b></td></tr>`
+        ? `<tr><td>${fmtDay(t.finished)}</td><td>${esc(t.name)}</td><td>${s.rw ? r(s.rw.range) : '—'}</td><td>${s.math ? r(s.math.range) : '—'}</td><td><b>${officialMid(t) ?? '—'}</b></td></tr>`
         : `<tr><td>${fmtDay(t.finished)}</td><td>${esc(t.name)} <span class="muted">(est.)</span></td><td>${s.rw?.scaled ?? '—'}</td><td>${s.math?.scaled ?? '—'}</td><td><b>${s.total ?? '—'}</b></td></tr>`; }).join('')}
       </table></div>` : '<p class="muted">No completed tests yet.</p>'}
     ${categoryTables(A)}

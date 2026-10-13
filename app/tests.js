@@ -2,7 +2,7 @@
 import { state, save, onServer } from './store.js';
 import { bank } from './data.js';
 import { officialTests } from './scoring.js';
-import { startMock, startModule2, runMock, canStartMock, SPEC, openModal, closeModal } from './mock.js';
+import { startMock, runMock, canStartMock, SPEC, openModal, closeModal } from './mock.js';
 import { startOfficial, runOfficial, cachedPdf, fetchPdf, storePickedPdf, officialMid } from './official.js';
 import { $, esc, fmtDay, toast, keys } from './util.js';
 
@@ -16,9 +16,9 @@ export async function renderTests(v) {
   const done = tests.filter(t => t.finished).sort((a, b) => b.finished - a.finished);
   const cached = new Set();
   for (const t of off) if (await cachedPdf(t)) cached.add(t.id);
-  const best = id => Math.max(...done.filter(t => t.kind === 'official' && t.testId === id).map(officialMid), -Infinity);
+  const best = id => Math.max(...done.filter(t => t.kind === 'official' && t.testId === id && !t.only).map(officialMid), -Infinity);
   const scoreText = t => t.kind === 'official'
-    ? [t.score.rw.range, t.score.math.range, t.score.total].map(r => `${r[0]}–${r[1]}`)
+    ? [t.score.rw?.range, t.score.math?.range, t.score.total].map(r => r ? `${r[0]}–${r[1]}` : '—')
     : [t.score.rw?.scaled ?? '—', t.score.math?.scaled ?? '—', t.score.total ?? '—'];
   view.innerHTML = `
     ${inProgress.length ? `<h3>In progress</h3><ol class="list">${inProgress.map(t => `
@@ -32,17 +32,17 @@ export async function renderTests(v) {
       <p><button class="btn" data-mock="rw,math">Full test</button> <button class="btn-lite" data-mock="rw">Reading and Writing only</button>
         <button class="btn-lite" data-mock="math">Math only</button>
         ${canStartMock() ? '' : '<span class="muted small">Available once more questions have downloaded.</span>'}</p>
-      <p class="small"><b>Quick score check:</b> skip module 1, count it as all correct, and take only the harder module 2 of one
-        section (${SPEC.rw.n} questions in ${SPEC.rw.minutes} min, or ${SPEC.math.n} in ${SPEC.math.minutes} min).</p>
-      <p><button class="btn-lite" data-m2="rw">Reading and Writing module 2</button> <button class="btn-lite" data-m2="math">Math module 2</button></p>
     </div>
     <h3>Official practice tests <span class="muted small">real College Board tests 4–11</span></h3>
     <div class="panel">
       <p class="small">The released practice tests in their paper format: 33 Reading and Writing questions per module (39 min) and 27 Math
         questions per module (43 min), not adaptive. Pages are shown as printed, with an answer sheet beside them, and scored with
         each test's official key and conversion table.${onServer ? '' : ' The first time, you may need to download the test PDF from the College Board and choose it here.'}</p>
-      <ol class="list">${off.map(t => `<li data-official="${t.id}"><span class="t"><b>${esc(t.name)}</b>
+      <p class="small"><b>Module 2 only:</b> for a quick section score, take just that section's second module. Module 1 is
+        counted as all correct, and the score comes from the test's own conversion table.</p>
+      <ol class="list">${off.map(t => `<li class="off-row" data-official="${t.id}"><span class="t"><b>${esc(t.name)}</b>
         <span class="muted">${cached.has(t.id) ? 'ready on this device' : 'PDF not downloaded yet'}${best(t.id) > 0 ? ` · best ${best(t.id)}` : ''}</span></span>
+        <button class="btn-lite small" data-only="rw">R&amp;W module 2</button><button class="btn-lite small" data-only="math">Math module 2</button>
         <button class="btn small">Start</button></li>`).join('')}</ol>
     </div>
     <h3>Completed tests</h3>
@@ -55,17 +55,14 @@ export async function renderTests(v) {
     if (!canStartMock()) return toast('Still downloading questions. Try again in a minute.');
     run(startMock(b.dataset.mock.split(',')));
   });
-  view.querySelectorAll('[data-m2]').forEach(b => b.onclick = () => {
-    if (!canStartMock()) return toast('Still downloading questions. Try again in a minute.');
-    run(startModule2(b.dataset.m2));
-  });
   view.querySelectorAll('[data-resume]').forEach(li => li.onclick = e => {
     const t = tests.find(x => x.uid === li.dataset.resume);
     if (e.target.dataset.discard) { if (confirm('Discard this unfinished test?')) { t.discarded = true; t.u = Date.now(); save(); renderTests(view); } return; }
     run(t);
   });
   view.querySelectorAll('[data-open]').forEach(tr => tr.onclick = () => run(tests.find(x => x.uid === tr.dataset.open)));
-  view.querySelectorAll('[data-official]').forEach(li => li.onclick = () => openOfficial(off.find(t => t.id === +li.dataset.official)));
+  view.querySelectorAll('[data-official]').forEach(li => li.onclick = e =>
+    openOfficial(off.find(t => t.id === +li.dataset.official), e.target.closest('[data-only]')?.dataset.only));
 }
 
 function progressText(t) {
@@ -85,10 +82,10 @@ function run(t) {
   } else runOfficial(view, t, exit);
 }
 
-async function openOfficial(test) {
-  if (await cachedPdf(test)) return run(startOfficial(test));
+async function openOfficial(test, only) {
+  if (await cachedPdf(test)) return run(startOfficial(test, only));
   toast('Getting the test PDF…', 2500);
-  if (await fetchPdf(test)) return run(startOfficial(test));
+  if (await fetchPdf(test)) return run(startOfficial(test, only));
   openModal(card => {
     card.innerHTML = `<h3>Get ${esc(test.name)}</h3>
       <p>The College Board doesn't let other websites download its PDFs, so this takes one manual step on this device.</p>
@@ -98,7 +95,7 @@ async function openOfficial(test) {
         (see the Data tab) downloads the PDFs automatically.</p><p class="err bad"></p>`;
     card.querySelector('.pick').onchange = async e => {
       const f = e.target.files[0]; if (!f) return;
-      try { await storePickedPdf(test, f); closeModal(); run(startOfficial(test)); }
+      try { await storePickedPdf(test, f); closeModal(); run(startOfficial(test, only)); }
       catch (err) { card.querySelector('.err').textContent = err.message; }
     };
   });
