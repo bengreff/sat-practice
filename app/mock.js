@@ -5,7 +5,7 @@ import { state, save } from './store.js';
 import { bank } from './data.js';
 import { bodyHTML, wireBody, mountPractice } from './question.js';
 import { $, esc, uid, shuffle, isCorrect, pct, fmtDay, weightedPick, h, keys, fixMath, toast } from './util.js';
-import { MIX, ROUTE_THRESHOLD, bandGroup, mockScore } from './scoring.js';
+import { MIX, ROUTE_THRESHOLD, bandGroup, mockScore, perfectModule } from './scoring.js';
 import { countdown, toggleCalculator, toggleReference, closeTools } from './tools.js';
 
 export const SPEC = {
@@ -42,6 +42,13 @@ export function startMock(parts) {
   const t = { uid: uid(), kind: 'mock', name: parts.length === 2 ? 'Full adaptive test' : `${SPEC[parts[0]].name} adaptive test`,
     parts, started: Date.now(), u: Date.now(), modules: [], stage: { i: 0, phase: 'module' } };
   t.modules.push(buildModule(parts[0], 1, null, new Set()));
+  state.tests.push(t); save();
+  return t;
+}
+// Quick score check: only the harder module 2 of one section, with module 1 counted as all correct.
+export function startModule2(sec) {
+  const t = { uid: uid(), kind: 'mock', name: `${SPEC[sec].name}: harder module 2`, parts: [sec], perfectM1: true,
+    started: Date.now(), u: Date.now(), modules: [buildModule(sec, 2, 'hard', new Set())], stage: { i: 0, phase: 'module' } };
   state.tests.push(t); save();
   return t;
 }
@@ -178,7 +185,8 @@ function finish(t) {
   for (const sec of t.parts) {
     const mods = t.modules.filter(m => m.sec === sec);
     const items = mods.flatMap(m => m.ids.map(id => { const q = bank.byId.get(id); return { band: q.band, correct: isCorrect(q, m.ans[id]) }; }));
-    t.score[sec] = mockScore(sec, items, mods[1].route);
+    if (t.perfectM1) items.unshift(...perfectModule(SPEC[sec].n));
+    t.score[sec] = mockScore(sec, items, mods.at(-1).route);
   }
   if (t.parts.length === 2) t.score.total = t.score.rw.scaled + t.score.math.scaled;
   t.finished = now;
@@ -198,10 +206,12 @@ function showResults(view, t, onExit) {
     <div class="tiles">
       ${sc.total ? `<div class="tile hero"><div class="k">Estimated total</div><div class="v">${sc.total}</div></div>` : ''}
       ${t.parts.map(s => `<div class="tile"><div class="k">${SPEC[s].name}</div><div class="v">${sc[s].scaled}</div>
-        <div class="k">${sc[s].right}/${sc[s].total} right · ${sc[s].route} module 2</div></div>`).join('')}
+        <div class="k">${t.perfectM1 ? `${t.modules[0].right}/${SPEC[s].n} on module 2 · module 1 counted ${SPEC[s].n}/${SPEC[s].n}`
+          : `${sc[s].right}/${sc[s].total} right · ${sc[s].route} module 2`}</div></div>`).join('')}
     </div>
     <p class="muted small">Scores are estimates: raw score converted with the average of the official practice-test conversion tables${
-      t.parts.some(s => sc[s].route === 'easy') ? ', capped after the easier second module' : ''}.</p>
+      t.parts.some(s => sc[s].route === 'easy') ? ', capped after the easier second module' : ''}.${
+      t.perfectM1 ? ' Module 1 was skipped and counted as all correct, with a typical module 1\'s mix of difficulties.' : ''}</p>
     <h3>By domain</h3><div class="group">${Object.entries(byDomain).map(([d, v]) =>
       `<div class="srow"><span class="name">${esc(d)}</span><span class="bar"><i style="width:${pct(v.right, v.n)}%"></i></span><span class="num">${pct(v.right, v.n)}%</span><span class="num">${v.right}/${v.n}</span></div>`).join('')}</div>
     ${t.modules.map(m => `<h3>${SPEC[m.sec].name}, module ${m.n}${m.route ? ` (${m.route})` : ''}: ${m.right}/${m.ids.length}</h3>

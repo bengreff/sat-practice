@@ -41,6 +41,13 @@ function paperFraction(items) {
   }
   return f;
 }
+// Stand-in items for a module 1 answered perfectly: n questions in a typical module 1's difficulty mix, all correct.
+export function perfectModule(n) {
+  const BAND = { E: 2, M: 4, 6: 6, 7: 7 };
+  const parts = Object.entries(MIX.m1).map(([g, w]) => ({ g, k: Math.floor(w * n), r: w * n % 1 }));
+  [...parts].sort((a, b) => b.r - a.r).slice(0, n - parts.reduce((s, p) => s + p.k, 0)).forEach(p => p.k++);
+  return parts.flatMap(p => Array.from({ length: p.k }, () => ({ band: BAND[p.g], correct: true })));
+}
 export function mockScore(section, items, route) {
   const right = items.filter(x => x.correct).length;
   let scaled = scaledFromFraction(section, paperFraction(items));

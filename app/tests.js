@@ -2,7 +2,7 @@
 import { state, save, onServer } from './store.js';
 import { bank } from './data.js';
 import { officialTests } from './scoring.js';
-import { startMock, runMock, canStartMock, SPEC, openModal, closeModal } from './mock.js';
+import { startMock, startModule2, runMock, canStartMock, SPEC, openModal, closeModal } from './mock.js';
 import { startOfficial, runOfficial, cachedPdf, fetchPdf, storePickedPdf, officialMid } from './official.js';
 import { $, esc, fmtDay, toast, keys } from './util.js';
 
@@ -32,6 +32,9 @@ export async function renderTests(v) {
       <p><button class="btn" data-mock="rw,math">Full test</button> <button class="btn-lite" data-mock="rw">Reading and Writing only</button>
         <button class="btn-lite" data-mock="math">Math only</button>
         ${canStartMock() ? '' : '<span class="muted small">Available once more questions have downloaded.</span>'}</p>
+      <p class="small"><b>Quick score check:</b> skip module 1, count it as all correct, and take only the harder module 2 of one
+        section (${SPEC.rw.n} questions in ${SPEC.rw.minutes} min, or ${SPEC.math.n} in ${SPEC.math.minutes} min).</p>
+      <p><button class="btn-lite" data-m2="rw">Reading and Writing module 2</button> <button class="btn-lite" data-m2="math">Math module 2</button></p>
     </div>
     <h3>Official practice tests <span class="muted small">real College Board tests 4–11</span></h3>
     <div class="panel">
@@ -51,6 +54,10 @@ export async function renderTests(v) {
   view.querySelectorAll('[data-mock]').forEach(b => b.onclick = () => {
     if (!canStartMock()) return toast('Still downloading questions. Try again in a minute.');
     run(startMock(b.dataset.mock.split(',')));
+  });
+  view.querySelectorAll('[data-m2]').forEach(b => b.onclick = () => {
+    if (!canStartMock()) return toast('Still downloading questions. Try again in a minute.');
+    run(startModule2(b.dataset.m2));
   });
   view.querySelectorAll('[data-resume]').forEach(li => li.onclick = e => {
     const t = tests.find(x => x.uid === li.dataset.resume);
