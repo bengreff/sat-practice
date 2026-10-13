@@ -29,7 +29,7 @@ export async function renderData(view, { resync, reload }) {
     : onWebsite ? '' : `<div class="panel"><h3>Website</h3><p>Use the same progress and questions on the website version:
       <a href="${WEB_URL}?link=1" target="_blank" rel="noopener">open it connected to this app</a> (needed once per browser).</p></div>`}
     <div class="panel"><h3>Progress</h3>
-      <p>${state.history.length} answers, ${state.tests.filter(t => t.finished).length} completed tests.
+      <p>${state.history.length} answers, ${state.tests.filter(t => t.finished && !t.deleted).length} completed tests.
         ${onServer ? 'Saved to <code>progress.json</code> by the local app (and in this browser).' : 'Saved in this browser.'}
         To move progress between devices, export a file here and import it on the other device; imports merge, so nothing is lost.</p>
       <p class="small muted">Nothing you do here is sent anywhere. The only requests go to the College Board's question bank, to

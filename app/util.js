@@ -90,12 +90,34 @@ export function snippet(q) {
 
 // ---------- modal ----------
 let modal = null;
-export function openModal(fill) {
-  modal?.remove();
-  modal = h(`<div class="modal"><div class="modal-inner"><button class="modal-x" title="Close">✕</button><div class="card"></div></div></div>`);
+let onModalClose = null;
+export function openModal(fill, { onClose = null, small = false } = {}) {
+  closeModal();
+  modal = h(`<div class="modal"><div class="modal-inner${small ? ' small' : ''}"><button class="modal-x" title="Close">✕</button><div class="card"></div></div></div>`);
   document.body.append(modal);
+  onModalClose = onClose;
   modal.onclick = e => { if (e.target === modal) closeModal(); };
   $('.modal-x', modal).onclick = closeModal;
   fill($('.card', modal));
 }
-export function closeModal() { modal?.remove(); modal = null; }
+export function closeModal() {
+  const cb = onModalClose; onModalClose = null;
+  modal?.remove(); modal = null;
+  cb?.();
+}
+// In-page confirmation (the browser's confirm() blocks the page and can't be styled). Resolves true or false.
+export function confirmBox(message, { ok = 'OK', cancel = 'Cancel', danger = false } = {}) {
+  return new Promise(res => {
+    let done = false;
+    const finish = v => { if (done) return; done = true; closeModal(); res(v); };
+    openModal(card => {
+      card.innerHTML = `<p class="confirm-msg">${esc(message)}</p><p class="confirm-btns"><button class="btn-lite no">${esc(cancel)}</button>
+        <button class="btn yes${danger ? ' danger' : ''}">${esc(ok)}</button></p>`;
+      card.querySelector('.yes').onclick = () => finish(true);
+      card.querySelector('.no').onclick = () => finish(false);
+      card.querySelector('.yes').focus();
+    }, { onClose: () => finish(false), small: true });
+  });
+}
+// Lets a view switch tabs (set by main.js).
+export const nav = { go: () => {} };

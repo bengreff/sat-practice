@@ -7,7 +7,7 @@ import { renderStats } from './stats.js';
 import { renderBrowse, bf } from './browse.js';
 import { renderPlan } from './plan.js';
 import { renderData } from './dataview.js';
-import { $, $$, keys, toast, n } from './util.js';
+import { $, $$, keys, toast, n, nav, closeModal } from './util.js';
 
 const VIEWS = ['practice', 'tests', 'stats', 'browse', 'plan', 'data'];
 let current = null;
@@ -30,6 +30,7 @@ function show(v) {
 }
 function browseSkill(section, domain, skill) { Object.assign(bf, { section, domain, skill, band: '', status: '', text: '' }); show('browse'); }
 $$('nav button').forEach(b => b.onclick = () => show(b.dataset.v));
+nav.go = show;
 
 // ---------- question download ----------
 // Only one tab downloads (a Web Lock); it passes each batch of questions to the app's other open tabs.
@@ -113,6 +114,7 @@ async function loadSeed() {
 
 // ---------- keyboard ----------
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if ($('.modal')) closeModal(); else if (current === 'tests') keys.ctl?.escape?.(); return; }
   if (e.metaKey || e.ctrlKey || e.altKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
   const modalCard = $('.modal .card');
   const ctl = modalCard ? modalCard._ctl : current === 'practice' ? $('#pcard')?._ctl : current === 'tests' ? keys.ctl : null;

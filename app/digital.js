@@ -5,8 +5,8 @@
 // within each domain come from the official practice-test modules. Difficulty mix, order and scoring: scoring.js.
 import { state, save } from './store.js';
 import { bank, isLive } from './data.js';
-import { bodyHTML, wireBody, mountPractice } from './question.js';
-import { $, esc, uid, shuffle, isCorrect, fmtDay, fmtSec, weightedPick, keys, fixMath, toast, openModal, closeModal } from './util.js';
+import { bodyHTML, wireBody } from './question.js';
+import { $, esc, uid, shuffle, isCorrect, weightedPick, keys, fixMath, toast, confirmBox } from './util.js';
 import { CAL, itemParams, sectionScore, routesHard, bandMix, assumedModule1, solutionZ } from './scoring.js';
 import { countdown, toggleCalculator, toggleReference, closeTools } from './tools.js';
 
@@ -169,8 +169,9 @@ export function planSteps(plan) {
   }
   return steps;
 }
-export function startTest(plan, skipLive) {
-  const t = { uid: uid(), kind: 'digital', name: planName(plan), plan, skipLive, steps: planSteps(plan),
+// timing: 1 standard, 1.5 or 2 extended time, 0 untimed (the clock then shows the time used)
+export function startTest(plan, skipLive, timing = 1) {
+  const t = { uid: uid(), kind: 'digital', name: planName(plan), plan, skipLive, timing, steps: planSteps(plan),
     started: Date.now(), u: Date.now(), modules: [], stage: { i: 0, phase: 'module' } };
   t.modules.push(nextModule(t, 0));
   state.tests.push(t); save();
@@ -184,7 +185,8 @@ function nextModule(t, i) {
   const step = t.steps[i], used = new Set(t.modules.flatMap(m => m.ids));
   let kind = step.kind;
   if (kind === 'adaptive') kind = routesHard(step.sec, responses(t.modules.find(m => m.sec === step.sec && m.kind === 'm1'))) ? 'hard' : 'easy';
-  return { ...buildModule(step.sec, kind, used, t.skipLive), routed: step.kind === 'adaptive' };
+  const m = buildModule(step.sec, kind, used, t.skipLive);
+  return { ...m, routed: step.kind === 'adaptive', remaining: t.timing === 0 ? 0 : SPEC[step.sec].minutes * 60 * (t.timing || 1) };
 }
 const persist = t => { t.u = Date.now(); save(); };
 
@@ -209,30 +211,99 @@ function finish(t) {
   t.finished = now;
 }
 
-// ---------- runner ----------
+// ---------- runner (laid out like Bluebook) ----------
+const SECTION_NO = { rw: 1, math: 2 };
+export const timingLabel = t => ({ 0: 'untimed', 1.5: 'time and a half', 2: 'double time' })[t.timing] || '';
+const DIRECTIONS = {
+  rw: `<p>The questions in this section cover a range of reading and writing skills. Each question has one or more passages,
+    which may include a table or graph. Read each passage and question carefully, then choose the best answer based on the
+    passage or passages.</p><p>All questions are multiple choice with four answer choices, and each has a single best answer.</p>`,
+  math: `<p>The questions in this section cover a range of math skills. You may use a calculator for every question.</p>
+    <p>Unless a question says otherwise, all variables and expressions represent real numbers, figures are drawn to scale,
+    all figures lie in a plane, and the domain of a function <i>f</i> is the set of all real numbers <i>x</i> for which
+    <i>f</i>(<i>x</i>) is a real number.</p><p>For multiple-choice questions, choose the single best answer.</p>${'SPR'}`,
+};
+const SPR_RULES = `<h4>Student-produced responses</h4><ul>
+  <li>If you find more than one correct answer, enter only one.</li>
+  <li>You can enter up to 5 characters for a positive answer and up to 6 (including the minus sign) for a negative answer.</li>
+  <li>If your answer is a fraction that doesn't fit, enter its decimal equivalent.</li>
+  <li>If your answer is a decimal that doesn't fit, enter it rounded or cut off at the fourth digit.</li>
+  <li>Enter a mixed number such as 3½ as an improper fraction (7/2) or a decimal (3.5).</li>
+  <li>Don't enter symbols such as a percent sign, comma or dollar sign.</li></ul>`;
+DIRECTIONS.math = DIRECTIONS.math.replace('SPR', SPR_RULES);
+const SHORTCUTS = `<h3>Keyboard shortcuts</h3><table class="data"><tr><td><kbd>A</kbd>–<kbd>D</kbd></td><td>choose an answer</td></tr>
+  <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>previous / next question</td></tr><tr><td><kbd>M</kbd></td><td>mark for review</td></tr>
+  <tr><td><kbd>X</kbd></td><td>cross out answer choices on or off</td></tr><tr><td><kbd>Esc</kbd></td><td>close a panel</td></tr></table>`;
+
+// Passage highlights are stored as [start, end) character offsets into the passage text.
+const textOffset = (root, node, off) => { const r = document.createRange(); r.setStart(root, 0); r.setEnd(node, off); return r.toString().length; };
+function paintHighlights(root, ranges) {
+  for (const [i, [s, e]] of ranges.entries()) {
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+    let pos = 0;
+    while (walk.nextNode()) { const n = walk.currentNode, a = pos, b = pos + n.length; pos = b; if (b > s && a < e && !n.parentElement.closest('mark.hl')) nodes.push([n, a]); }
+    for (const [n, a] of nodes) {
+      let node = n;
+      const from = Math.max(0, s - a), to = Math.min(n.length, e - a);
+      if (to <= from) continue;
+      if (from > 0) node = node.splitText(from);
+      if (to - from < node.length) node.splitText(to - from);
+      const mark = document.createElement('mark'); mark.className = 'hl'; mark.dataset.r = i;
+      node.replaceWith(mark); mark.append(node);
+    }
+  }
+}
+const mergeRanges = rs => rs.sort((a, b) => a[0] - b[0]).reduce((out, r) => {
+  const last = out.at(-1);
+  if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]); else out.push([...r]);
+  return out;
+}, []);
+
 let timer = null;
-export function runTest(view, t, onExit) {
+export function runTest(view, t, onExit, onFinish) {
   closeTools();
   timer?.stop();
-  if (t.finished) return showResults(view, t, onExit);
-  if (t.stage.phase === 'break') return showBreak(view, t, onExit);
-  const m = t.modules[t.stage.i], spec = SPEC[m.sec];
+  if (t.stage.phase === 'break') return showBreak(view, t, onExit, onFinish);
+  const m = t.modules[t.stage.i], spec = SPEC[m.sec], rw = m.sec === 'rw', untimed = t.timing === 0;
+  m.hl ||= {};
   view.innerHTML = `<div class="runner">
-    <div class="run-top"><div class="run-title">${spec.name}: Module ${m.kind === 'm1' ? 1 : 2}</div><div class="timer"></div>
-      <div class="run-tools">${m.sec === 'math' ? '<button class="btn-lite" data-t="calc">Calculator</button><button class="btn-lite" data-t="ref">Reference</button>' : ''}
-      <button class="btn-lite" data-t="exit" title="The timer pauses while you are away">Save &amp; exit</button></div></div>
+    <div class="run-top">
+      <div class="run-title"><b>Section ${SECTION_NO[m.sec]}, Module ${m.kind === 'm1' ? 1 : 2}: ${spec.name}</b>
+        <button class="linkbtn" data-t="dir">Directions ▾</button></div>
+      <div class="timer"></div>
+      <div class="run-tools">
+        ${rw ? '<button class="tool-btn" data-t="hl" aria-pressed="false" title="Select passage text to highlight it; click a highlight to remove it">✎ Highlight</button>'
+          : '<button class="tool-btn" data-t="calc">Calculator</button><button class="tool-btn" data-t="ref">Reference</button>'}
+        <span class="menu-wrap"><button class="tool-btn" data-t="more" aria-haspopup="true">More ▾</button>
+          <span class="menu" hidden><button data-t="keys">Keyboard shortcuts</button><button data-t="exit">Save and exit</button></span></span>
+      </div></div>
     <div class="run-main"></div>
-    <div class="run-bottom"><button class="btn-lite navbtn"></button><span class="grow"></span><button class="btn-lite back">Back</button><button class="btn next">Next</button></div>
-    <div class="navpop" hidden></div></div>`;
-  const main = $('.run-main', view), navpop = $('.navpop', view);
-  view.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
-    if (b.dataset.t === 'calc') toggleCalculator();
-    if (b.dataset.t === 'ref') toggleReference();
-    if (b.dataset.t === 'exit') { leaveQ(); timer.stop(); closeTools(); persist(t); onExit(); }
+    <div class="run-bottom"><span class="run-name">${esc(t.name)}${timingLabel(t) ? ` · ${timingLabel(t)}` : ''}</span>
+      <button class="navbtn"></button><span class="run-nav"><button class="btn-lite back">Back</button><button class="btn next">Next</button></span></div>
+    <div class="navpop" hidden></div>
+    <div class="pop dirpop" hidden><div class="pop-body">${DIRECTIONS[m.sec]}</div><p><button class="btn close">Close</button></p></div>
+    <div class="pop keypop" hidden><div class="pop-body">${SHORTCUTS}</div><p><button class="btn close">Close</button></p></div></div>`;
+  const main = $('.run-main', view), navpop = $('.navpop', view), menu = $('.menu', view);
+  const pop = (sel, open) => { const p = $(sel, view); p.hidden = open === undefined ? !p.hidden : !open; };
+  let hlMode = false;
+  view.querySelectorAll('[data-t]').forEach(b => b.onclick = e => {
+    const k = b.dataset.t; e.stopPropagation();
+    if (k === 'calc') toggleCalculator();
+    if (k === 'ref') toggleReference();
+    if (k === 'dir') pop('.dirpop');
+    if (k === 'more') menu.hidden = !menu.hidden;
+    if (k === 'keys') { menu.hidden = true; pop('.keypop', true); }
+    if (k === 'hl') { hlMode = !hlMode; b.classList.toggle('on', hlMode); b.setAttribute('aria-pressed', hlMode); main.classList.toggle('hl-mode', hlMode); }
+    if (k === 'exit') { leaveQ(); timer.stop(); closeTools(); persist(t); onExit(); }
   });
+  view.querySelectorAll('.pop .close').forEach(b => b.onclick = () => b.closest('.pop').hidden = true);
+  view.querySelector('.runner').addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) menu.hidden = true; });
+  if (!m.sawDirections) { m.sawDirections = true; pop('.dirpop', true); }
   let tick = 0;
   timer = countdown($('.timer', view), m.remaining, {
+    untimed,
     onTick: r => { m.remaining = r; if (++tick % 5 === 0) persist(t); },
+    onWarn: () => toast('5 minutes left in this module.'),
     onEnd: () => submit(true),
   });
 
@@ -245,56 +316,112 @@ export function runTest(view, t, onExit) {
   function go(i) { leaveQ(); m.idx = i; navpop.hidden = true; show(); persist(t); }
   function show() {
     const i = m.idx;
-    $('.navbtn', view).textContent = i < m.ids.length ? `Question ${i + 1} of ${m.ids.length} ▾` : 'Review ▾';
+    $('.navbtn', view).textContent = i < m.ids.length ? `Question ${i + 1} of ${m.ids.length} ▴` : 'Review ▴';
     $('.back', view).disabled = i === 0;
-    $('.next', view).hidden = i >= m.ids.length;
+    $('.next', view).textContent = i >= m.ids.length ? 'Submit' : 'Next';
     if (i >= m.ids.length) return review();
     const q = bank.byId.get(m.ids[i]);
-    const split = !!(q.stimulus && q.section === 'Reading & Writing');
-    main.innerHTML = `<div class="rq${split ? ' split' : ''}">
-      ${split ? `<div class="rq-left"><div class="stimulus">${q.stimulus}</div></div>` : ''}
+    // R&W passage on the left, question on the right; math grid-ins show the entry rules on the left, as in Bluebook
+    const left = rw && q.stimulus ? `<div class="stimulus hl-area">${q.stimulus}</div>` : !rw && q.type !== 'mcq' ? `<div class="spr-rules">${SPR_RULES}</div>` : '';
+    main.innerHTML = `<div class="rq${left ? ' split' : ''}"${left && t.split ? ` style="--split:${t.split}fr"` : ''}>
+      ${left ? `<div class="rq-left">${left}</div><div class="divider" title="Drag to resize"></div>` : ''}
       <div class="rq-right"><div class="rq-head"><span class="qnum">${i + 1}</span>
-        <button class="tool mark${m.marks[q.id] ? ' on' : ''}">⚑ Mark for review</button>
-        <label class="tool"><input type="checkbox" class="elim"> ABC eliminate</label></div>
-        <div class="q-body">${bodyHTML(split ? { ...q, stimulus: '' } : q)}</div></div></div>`;
-    if (split) fixMath($('.rq-left', main));
+        <button class="tool mark${m.marks[q.id] ? ' on' : ''}" aria-pressed="${!!m.marks[q.id]}"></button><span class="grow"></span>
+        ${q.type === 'mcq' ? `<button class="tool abc${m.elim ? ' on' : ''}" aria-pressed="${!!m.elim}" title="Cross out answer choices (X)">A̶B̶C̶</button>` : ''}</div>
+        <div class="q-body">${bodyHTML(left && rw ? { ...q, stimulus: '' } : q)}</div></div></div>`;
+    const rq = $('.rq', main);
+    if (rw && q.stimulus) { const area = $('.hl-area', main); fixMath(area); paintHighlights(area, m.hl[q.id] || []); wireHighlights(area, q); }
+    rq.classList.toggle('elim-on', !!m.elim);
     body = wireBody($('.q-body', main), q, {
       initial: m.ans[q.id] ?? null, struck: m.struck[q.id] || [],
       onChange: a => { if (a == null) delete m.ans[q.id]; else m.ans[q.id] = a; persist(t); },
     });
     qStart = Date.now();
-    $('.mark', main).onclick = e => { m.marks[q.id] = !m.marks[q.id]; e.currentTarget.classList.toggle('on', m.marks[q.id]); persist(t); };
-    $('.elim', main).onchange = e => $('.rq', main).classList.toggle('elim-on', e.target.checked);
+    const mark = $('.mark', main), paintMark = () => { mark.textContent = m.marks[q.id] ? '⚑ Marked for review' : '⚐ Mark for review'; mark.classList.toggle('on', !!m.marks[q.id]); mark.setAttribute('aria-pressed', !!m.marks[q.id]); };
+    paintMark();
+    mark.onclick = () => { m.marks[q.id] = !m.marks[q.id]; paintMark(); persist(t); };
+    const abc = $('.abc', main);
+    if (abc) abc.onclick = () => { m.elim = !m.elim; abc.classList.toggle('on', m.elim); abc.setAttribute('aria-pressed', m.elim); rq.classList.toggle('elim-on', m.elim); persist(t); };
+    wireDivider(rq);
     main.scrollTop = 0;
   }
+  function wireHighlights(area, q) {
+    const add = () => {
+      if (!hlMode) return;
+      const sel = getSelection();
+      if (!sel || sel.isCollapsed || !area.contains(sel.anchorNode) || !area.contains(sel.focusNode)) return;
+      const r = sel.getRangeAt(0), a = textOffset(area, r.startContainer, r.startOffset), b = textOffset(area, r.endContainer, r.endOffset);
+      if (b - a < 1) return;
+      m.hl[q.id] = mergeRanges([...(m.hl[q.id] || []), [a, b]]);
+      sel.removeAllRanges(); area.innerHTML = q.stimulus; fixMath(area); paintHighlights(area, m.hl[q.id]); persist(t);
+    };
+    area.addEventListener('mouseup', add); area.addEventListener('touchend', () => setTimeout(add, 0));
+    area.addEventListener('click', e => {
+      const mk = e.target.closest('mark.hl');
+      if (!hlMode || !mk || !getSelection().isCollapsed) return;
+      m.hl[q.id].splice(+mk.dataset.r, 1);
+      area.innerHTML = q.stimulus; fixMath(area); paintHighlights(area, m.hl[q.id]); persist(t);
+    });
+  }
+  function wireDivider(rq) {
+    const d = $('.divider', rq); if (!d) return;
+    d.onpointerdown = e => {
+      d.setPointerCapture(e.pointerId);
+      const box = rq.getBoundingClientRect();
+      d.onpointermove = ev => {
+        const f = Math.min(0.75, Math.max(0.25, (ev.clientX - box.left) / box.width));
+        t.split = +(f / (1 - f)).toFixed(3); rq.style.setProperty('--split', t.split + 'fr');
+      };
+      d.onpointerup = () => { d.onpointermove = null; persist(t); };
+    };
+  }
   function grid() {
-    return `<div class="qgrid">${m.ids.map((id, i) => `<button data-i="${i}" class="${m.ans[id] != null ? 'answered' : ''}${m.marks[id] ? ' marked' : ''}${i === m.idx ? ' current' : ''}">${i + 1}</button>`).join('')}</div>
-      <p class="legend"><span class="lg answered"></span> answered <span class="lg"></span> unanswered <span class="lg marked"></span> marked for review</p>`;
+    return `<div class="qgrid">${m.ids.map((id, i) => `<button data-i="${i}" class="${m.ans[id] != null ? 'answered' : ''}${m.marks[id] ? ' marked' : ''}${i === m.idx ? ' current' : ''}"
+      aria-label="Question ${i + 1}${m.ans[id] != null ? ', answered' : ', unanswered'}${m.marks[id] ? ', marked for review' : ''}">${i + 1}</button>`).join('')}</div>
+      <p class="legend"><span class="lg current"></span> current <span class="lg"></span> unanswered <span class="lg answered"></span> answered <span class="lg marked"></span> for review</p>`;
   }
   function review() {
-    const unanswered = m.ids.filter(id => m.ans[id] == null).length;
+    const unanswered = m.ids.filter(id => m.ans[id] == null).length, marked = m.ids.filter(id => m.marks[id]).length;
     main.innerHTML = `<div class="review-page"><h2>Check your work</h2>
-      <p>${unanswered ? `<b>${unanswered}</b> unanswered. ` : 'All questions answered. '}Select a number to go back to it. When you submit, you can't return to this module.</p>
+      <p>${unanswered ? `<b>${unanswered}</b> unanswered` : 'Every question is answered'}${marked ? ` · <b>${marked}</b> marked for review` : ''}.
+        Select a question to go back to it. Once you submit this module, you can't return to it.</p>
       ${grid()}<button class="btn submit">Submit module</button></div>`;
     main.querySelectorAll('.qgrid button').forEach(b => b.onclick = () => go(+b.dataset.i));
     $('.submit', main).onclick = () => submit(false);
   }
-  $('.navbtn', view).onclick = () => {
+  $('.navbtn', view).onclick = e => {
+    e.stopPropagation();
     navpop.hidden = !navpop.hidden;
     if (!navpop.hidden) {
-      navpop.innerHTML = `${grid()}<button class="btn-lite toreview">Go to review page</button>`;
+      navpop.innerHTML = `<div class="np-head"><b>${spec.name}, module ${m.kind === 'm1' ? 1 : 2}</b><button class="modal-x np-x" title="Close">✕</button></div>
+        ${grid()}<button class="btn-lite toreview">Go to the review page</button>`;
       navpop.querySelectorAll('.qgrid button').forEach(b => b.onclick = () => go(+b.dataset.i));
       $('.toreview', navpop).onclick = () => go(m.ids.length);
+      $('.np-x', navpop).onclick = () => navpop.hidden = true;
     }
   };
   $('.back', view).onclick = () => go(Math.max(0, m.idx - 1));
-  $('.next', view).onclick = () => go(m.idx + 1);
+  $('.next', view).onclick = () => m.idx >= m.ids.length ? submit(false) : go(m.idx + 1);
   keys.ctl = {
-    key(k) { if (/^[a-d]$/i.test(k) && body) body.select(k.toUpperCase()); },
+    key(k) {
+      const q = bank.byId.get(m.ids[m.idx]);
+      if (/^[a-d]$/i.test(k) && body && q?.type === 'mcq') body.select(k.toUpperCase());
+      if (/^m$/i.test(k) && q) $('.mark', main)?.click();
+      if (/^x$/i.test(k)) $('.abc', main)?.click();
+    },
     arrow(d) { const j = m.idx + d; if (j >= 0 && j <= m.ids.length) go(j); },
+    escape() { navpop.hidden = true; menu.hidden = true; view.querySelectorAll('.pop').forEach(p => p.hidden = true); },
   };
 
-  function submit(timeUp) {
+  let submitting = false;
+  async function submit(timeUp) {
+    if (submitting) return;
+    if (!timeUp) {
+      const blank = m.ids.filter(id => m.ans[id] == null).length;
+      if (blank && !(await confirmBox(`${blank} question${blank === 1 ? ' is' : 's are'} unanswered. Submit this module anyway? You can't come back to it.`,
+        { ok: 'Submit module', cancel: 'Keep working' }))) return;
+    }
+    submitting = true;
     leaveQ(); timer.stop(); closeTools();
     m.submitted = true; m.remaining = Math.max(0, m.remaining);
     m.right = scoredIds(m).filter(id => isCorrect(bank.byId.get(id), m.ans[id])).length;
@@ -305,66 +432,27 @@ export function runTest(view, t, onExit) {
     } else finish(t);
     persist(t);
     if (timeUp) toast('Time is up. That module was submitted.');
-    runTest(view, t, onExit);
+    if (t.finished) onFinish(); else runTest(view, t, onExit, onFinish);
   }
   show();
 }
 
-function showBreak(view, t, onExit) {
-  view.innerHTML = `<div class="runner center"><h2>Break</h2><p>Stretch and rest. Math starts when the timer ends or you continue.</p>
-    <div class="timer big"></div><p><button class="btn resume">Resume testing</button> <button class="btn-lite exit">Save &amp; exit</button></p></div>`;
-  const next = () => { timer.stop(); t.stage.phase = 'module'; persist(t); runTest(view, t, onExit); };
-  timer = countdown($('.timer', view), t.stage.breakLeft ?? BREAK_SECONDS, { onTick: r => { t.stage.breakLeft = r; }, onEnd: next });
-  $('.resume', view).onclick = next;
+function showBreak(view, t, onExit, onFinish) {
+  const next = t.modules[t.stage.i];
+  view.innerHTML = `<div class="runner center"><div class="break-card"><h2>Break</h2>
+    <p>Stand up, stretch, get some water. ${SPEC[next.sec].name} starts when the break ends, or whenever you're ready.</p>
+    <div class="timer big"></div><p class="muted small">Remaining break time</p>
+    <p><button class="btn resume">Resume testing</button> <button class="btn-lite exit">Save and exit</button></p></div></div>`;
+  const go = () => { timer.stop(); t.stage.phase = 'module'; persist(t); runTest(view, t, onExit, onFinish); };
+  timer = countdown($('.timer', view), t.stage.breakLeft ?? BREAK_SECONDS, { onTick: r => { t.stage.breakLeft = r; }, onEnd: go });
+  $('.resume', view).onclick = go;
   $('.exit', view).onclick = () => { timer.stop(); persist(t); onExit(); };
   keys.ctl = null;
 }
 
-// ---------- results ----------
 export const progressText = t => {
   if (t.stage.phase === 'break') return 'on break';
   const m = t.modules[t.stage.i];
-  return `${SPEC[m.sec].name} module ${m.kind === 'm1' ? 1 : 2}`;
+  return `${SPEC[m.sec].name} module ${m.kind === 'm1' ? 1 : 2}, question ${Math.min(m.idx + 1, m.ids.length)} of ${m.ids.length}`;
 };
-function showResults(view, t, onExit) {
-  keys.ctl = null;
-  document.body.classList.remove('testing');   // the test is over: the tabs come back
-  const sc = t.score, secs = ['rw', 'math'].filter(s => sc[s]);
-  const modLine = s => t.modules.filter(m => m.sec === s).map(m => `${MODULE_NAME[m.kind]} ${m.right}/${scoredIds(m).length}`).join(' · ');
-  const notes = secs.map(s => {
-    const x = sc[s], name = SPEC[s].name;
-    if (x.assumed === 'perfect') return `${name}: module 1 wasn't taken and is counted as all correct.`;
-    if (x.assumed === 'cut') return `${name}: module 1 wasn't taken and is counted as a student just below the cutoff for the harder module 2, the best module 1 that still leads to the easier one.`;
-    if (x.wouldRoute) return `${name}: module 1 only. With this module 1 you would get the ${x.wouldRoute === 'hard' ? 'harder' : 'easier'} module 2.`;
-    return '';
-  }).filter(Boolean);
-  view.innerHTML = `<div class="results">
-    <div class="bar-top"><button class="btn-lite back">← Tests</button><span>${esc(t.name)} · ${fmtDay(t.started)}</span></div>
-    <div class="tiles">
-      ${sc.total ? `<div class="tile hero"><div class="k">Estimated total</div><div class="v">${sc.total}</div></div>` : ''}
-      ${secs.map(s => `<div class="tile"><div class="k">${SPEC[s].name}</div><div class="v">${sc[s].scaled}</div>
-        <div class="k">likely ${sc[s].range[0]}–${sc[s].range[1]}</div><div class="k">${modLine(s)}</div></div>`).join('')}
-    </div>
-    ${notes.map(n => `<p class="small">${esc(n)}</p>`).join('')}
-    <p class="muted small">Scored the way the College Board scores the digital SAT (item response theory: your score is the ability
-      that best explains which questions you got right, given how hard they are, so right answers on the harder module 2 count
-      for more), with difficulty estimates calibrated on the official practice tests. "Likely" is one standard error either
-      side. The two pretest questions in each module are not scored. Questions marked <b>7+</b> are the hardest band-7
-      questions, which end the harder math module 2.</p>
-    ${t.modules.map(m => {
-      const total = m.ids.reduce((a, id) => a + (m.secs[id] || 0), 0), avg = total / m.ids.length;
-      return `<h3>${SPEC[m.sec].name}, ${MODULE_NAME[m.kind]}${m.routed ? ' <span class="muted small">(routed by module 1)</span>' : ''}:
-        ${m.right}/${scoredIds(m).length} <span class="muted small">· ${fmtSec(total)} of ${SPEC[m.sec].minutes}:00</span></h3>
-      <ol class="list">${m.ids.map((id, i) => { const q = bank.byId.get(id), ok = isCorrect(q, m.ans[id]), pre = m.pretest.includes(id), s = m.secs[id] || 0; return `
-        <li data-id="${id}"><span class="m ${pre ? 'muted' : ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'}</span><span class="n">${i + 1}.</span>
-        <span class="t"><span class="sk">${esc(q.skill)}</span> <span class="muted">band ${q.band}${m.extreme.includes(id) ? '+' : ''}${pre ? ' · pretest, not scored' : ''} · you: ${esc(m.ans[id] ?? '—')}${m.marks[id] ? ' · ⚑' : ''}</span></span>
-        <span class="num${s > 2 * avg && s > 90 ? ' slow' : ''}">${fmtSec(s)}</span></li>`; }).join('')}</ol>`;
-    }).join('')}
-  </div>`;
-  $('.back', view).onclick = onExit;
-  view.querySelectorAll('li[data-id]').forEach(li => li.onclick = () => {
-    const q = bank.byId.get(li.dataset.id), entry = state.history.find(x => x.test === t.uid && x.id === q.id);
-    openModal(card => mountPractice(card, q, { entry, onNext: closeModal, nextLabel: 'Close' }));
-  });
-}
-export { openModal, closeModal };
+export { scoredIds };

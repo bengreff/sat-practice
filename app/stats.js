@@ -31,7 +31,7 @@ export function renderStats(view, { browseSkill }) {
     const es = withBand.filter(x => x.band === b);
     return { label: `Band ${b}`, n: es.length, v: es.length ? es.filter(x => x.correct).length / es.length : null };
   });
-  const tests = state.tests.filter(t => t.finished).sort((a, b) => a.finished - b.finished);
+  const tests = state.tests.filter(t => t.finished && !t.deleted).sort((a, b) => a.finished - b.finished);
 
   view.innerHTML = `
     <div class="tiles">${tiles.map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</div>

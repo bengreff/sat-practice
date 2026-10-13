@@ -8,7 +8,7 @@ Bluebook format. It runs in your browser, phone included, with no account.
 
 | Practice | Practice test | Test results | Stats |
 |---|---|---|---|
-| ![Practice question with its explanation](docs/practice.png) | ![Math module with the Desmos calculator](docs/test.png) | ![Test results with time per question](docs/results.png) | ![Stats](docs/stats.png) |
+| ![Practice question with its explanation](docs/practice.png) | ![Math module with the Desmos calculator](docs/test.png) | ![Score report with scores and knowledge and skills](docs/results.png) | ![Stats](docs/stats.png) |
 
 ## Getting started
 
@@ -38,10 +38,16 @@ Bluebook format. It runs in your browser, phone included, with no account.
   difficulty).
 - Module 2 is harder or easier depending on how module 1 went, as on the real test. The harder Math module 2 ends
   with the hardest questions in the bank.
-- Choose any modules: a full test, one section, module 1 only, or a module 2 on its own (module 1 is then counted as
-  all correct, or as just missing the harder module for the easier one).
-- Desmos graphing calculator, reference sheet, mark for review, question navigator, save and resume; the results
-  show every question's difficulty and the time you spent on it.
+- Take a full test, one section, or a single module: module 1 only, or a module 2 on its own (module 1 is then
+  counted as all correct, or as just missing the harder module for the easier one).
+- The Bluebook screen: section and module header, directions, timer you can hide (with a 5-minute warning), passage
+  highlighter, answer crossing-out, mark for review, question navigator and review page, resizable split view, Desmos
+  graphing calculator and reference sheet, grid-in entry with the SAT's character limits and an answer preview, and
+  keyboard shortcuts. Standard time, time and a half, double time or untimed.
+- A score report: total and section scores with a likely range, results by domain and skill, a pacing chart of the
+  time spent on every question, and a question-by-question review (filter by incorrect, unanswered, marked) with
+  the explanations. Redo the questions you missed, or point your practice at your weakest skills, in one click.
+- Score history over time; save and resume any test.
 - Optionally leaves out the questions the College Board uses on its Bluebook practice tests, so you can still take
   those fresh.
 

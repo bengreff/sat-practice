@@ -8,11 +8,12 @@ export function toggleCalculator(force) {
       <div class="fp-head"><span>Desmos graphing calculator</span><span><button class="fp-size" title="Resize">⤢</button><button class="fp-close" title="Close">✕</button></span></div>
       <iframe src="https://www.desmos.com/calculator" title="Desmos graphing calculator" allow="clipboard-write"></iframe></div>`);
     document.body.append(calc);
-    calc.querySelector('.fp-close').onclick = () => calc.hidden = true;
+    calc.querySelector('.fp-close').onclick = () => toggleCalculator(false);
     calc.querySelector('.fp-size').onclick = () => calc.classList.toggle('big');
     dragify(calc);
   }
   calc.hidden = force === undefined ? !calc.hidden : !force;
+  document.body.classList.toggle('calc-open', !calc.hidden);   // the test screen makes room for it
 }
 
 let ref = null;
@@ -42,7 +43,7 @@ export function toggleReference(force) {
   }
   ref.hidden = force === undefined ? !ref.hidden : !force;
 }
-export function closeTools() { if (calc) calc.hidden = true; if (ref) ref.hidden = true; }
+export function closeTools() { if (calc) calc.hidden = true; if (ref) ref.hidden = true; document.body.classList.remove('calc-open'); }
 
 function dragify(panel) {
   const head = panel.querySelector('.fp-head');
@@ -59,20 +60,25 @@ function dragify(panel) {
   };
 }
 
-// Countdown that survives reloads: the caller persists `remaining` (seconds) via onTick.
-export function countdown(el, remaining, { onTick = () => {}, onEnd = () => {} }) {
-  let hidden = false, last = Date.now(), stopped = false;
+// Countdown that survives reloads: the caller persists `remaining` (seconds) via onTick. onWarn fires once when 5
+// minutes are left (the timer is shown again if hidden). untimed: counts the time used upward instead and never ends
+// (then `remaining` is the elapsed time).
+export function countdown(el, remaining, { onTick = () => {}, onEnd = () => {}, onWarn = () => {}, untimed = false }) {
+  let hidden = false, last = Date.now(), stopped = false, warned = untimed || remaining <= 300;
   const paint = () => {
     el.querySelector('.t').textContent = hidden ? '' : fmtSec(Math.max(0, remaining));
-    el.classList.toggle('warn', remaining <= 300);
+    el.classList.toggle('warn', !untimed && remaining <= 300);
+    el.querySelector('button').textContent = hidden ? 'Show' : 'Hide';
   };
-  el.innerHTML = `<span class="t"></span><button class="btn-lite small">Hide</button>`;
-  el.querySelector('button').onclick = e => { hidden = !hidden; e.target.textContent = hidden ? 'Show' : 'Hide'; paint(); };
+  el.innerHTML = `<span class="t"></span><button class="btn-lite small"></button>`;
+  el.title = untimed ? 'Untimed: time used so far' : 'Time left in this module';
+  el.querySelector('button').onclick = () => { hidden = !hidden; paint(); };
   const id = setInterval(() => {
-    const now = Date.now();
-    remaining -= (now - last) / 1000; last = now;
+    const now = Date.now(), dt = (now - last) / 1000; last = now;
+    remaining += untimed ? dt : -dt;
+    if (!warned && remaining <= 300) { warned = true; hidden = false; onWarn(); }
     paint(); onTick(remaining);
-    if (remaining <= 0 && !stopped) { stopped = true; clearInterval(id); onEnd(); }
+    if (!untimed && remaining <= 0 && !stopped) { stopped = true; clearInterval(id); onEnd(); }
   }, 1000);
   paint();
   return { stop() { stopped = true; clearInterval(id); }, get remaining() { return remaining; } };

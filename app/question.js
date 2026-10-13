@@ -16,9 +16,27 @@ export function bodyHTML(q) {
     ? `<div class="choices">${q.choices.map((c, i) => `
         <div class="choice-row"><button class="choice" data-l="${LETTERS[i]}"><span class="l">${LETTERS[i]}</span><span class="c">${c}</span></button>
         <button class="strike" data-l="${LETTERS[i]}" title="Eliminate ${LETTERS[i]}" aria-label="Eliminate ${LETTERS[i]}">${LETTERS[i]}</button></div>`).join('')}</div>`
-    : `<div class="spr"><input class="spr-in" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="Your answer">
-        <span class="spr-hint">Fractions (7/2) or decimals; up to 5 characters (6 if negative).</span></div>`;
+    : `<div class="spr"><input class="spr-in" inputmode="decimal" autocomplete="off" spellcheck="false" maxlength="6" aria-label="Your answer">
+        <div class="spr-preview" aria-live="polite">Answer preview: <span></span></div>
+        <span class="spr-hint">Up to 5 characters, or 6 with a negative sign. Fractions like 7/2, decimals like 3.5.</span></div>`;
   return `${q.stimulus ? `<div class="stimulus">${q.stimulus}</div>` : ''}<div class="stem">${q.stem}</div>${choices}`;
+}
+
+// Grid-in entry as on the SAT: digits, one decimal point, one fraction bar, a leading minus sign; 5 characters
+// (6 with the minus sign).
+export function cleanSpr(v) {
+  v = v.replace(/[−–]/g, '-').replace(/[^0-9./-]/g, '');
+  v = (v[0] === '-' ? '-' : '') + v.replace(/-/g, '');
+  const once = (s, c) => { const i = s.indexOf(c); return i < 0 ? s : s.slice(0, i + 1) + s.slice(i + 1).split(c).join(''); };
+  v = once(once(v, '.'), '/');
+  return v.slice(0, v.startsWith('-') ? 6 : 5);
+}
+export function sprPreview(v) {
+  if (!v) return '';
+  const neg = v.startsWith('-') ? '−' : '', a = v.replace(/^-/, '');
+  if (!a.includes('/')) return neg + esc(a);
+  const [n, d] = a.split('/');
+  return `${neg}<span class="frac"><span>${esc(n)}</span><span>${esc(d || ' ')}</span></span>`;
 }
 
 // Wires choices / strike-outs / grid-in inside `root`. onChange(answer) fires on every selection.
@@ -52,8 +70,14 @@ export function wireBody(root, q, { onChange = () => {}, initial = null, struck 
     paint();
   });
   if (inp) {
-    inp.value = initial ?? '';
-    inp.oninput = () => { picked = inp.value.trim() || null; onChange(picked); };
+    const prev = root.querySelector('.spr-preview span');
+    const show = () => { if (prev) prev.innerHTML = sprPreview(inp.value); };
+    inp.value = initial ?? ''; show();
+    inp.oninput = () => {
+      const v = cleanSpr(inp.value);
+      if (v !== inp.value) inp.value = v;
+      picked = v || null; show(); onChange(picked);
+    };
   }
   paint();
   fixMath(root);
@@ -140,4 +164,23 @@ export function mountPractice(card, q, { entry = null, prior = [], onNext, nextL
   };
   if (entry) reveal(entry);
   else el('.spr-in')?.focus({ preventScroll: true });
+}
+
+// A test question after the test: your answer and the correct one marked, the explanation, and a flag for later.
+export function mountReview(card, q, { answer = null, struck = [], pretest = false }) {
+  const ok = isCorrect(q, answer);
+  card.innerHTML = `
+    <div class="meta">${metaLine(q)}</div>
+    <div class="q-body">${bodyHTML(q)}</div>
+    <div class="actions"><span class="verdict ${pretest ? 'muted' : ok ? 'ok' : 'bad'}">${answer == null ? 'Not answered' : ok ? 'Correct' : 'Incorrect'}${
+      ok ? '' : `, the answer is ${esc(answerText(q))}`}${pretest ? ' (pretest question, not scored)' : ''}</span>
+      <button class="tool flag">⚑ Flag for practice</button></div>
+    <div class="rat"><div class="rationale">${q.rationale}</div></div>`;
+  const body = wireBody(card.querySelector('.q-body'), q, { initial: answer, struck });
+  body.lock(); body.mark(q.type === 'mcq' ? q.answer[0] : null, answer);
+  card.querySelectorAll('.spr-preview, .spr-hint').forEach(e => e.remove());
+  const flag = card.querySelector('.flag'), paint = () => flag.classList.toggle('on', isFlagged(q.id));
+  flag.onclick = () => { setFlag(q.id, !isFlagged(q.id)); paint(); };
+  paint();
+  fixMath(card.querySelector('.rat'));
 }
