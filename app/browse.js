@@ -2,8 +2,7 @@
 import { state } from './store.js';
 import { bank, attemptsById, structure, status } from './data.js';
 import { mountPractice, isFlagged } from './question.js';
-import { openModal, closeModal } from './mock.js';
-import { $, esc, snippet, SECTIONS, SHORT } from './util.js';
+import { $, esc, snippet, SECTIONS, SHORT, openModal, closeModal } from './util.js';
 
 export const bf = { section: '', band: '', domain: '', skill: '', status: '', text: '' };
 const STATUSES = [['', 'Any status'], ['unseen', 'Never answered'], ['answered', 'Answered'], ['missed', 'Missed at least once'],

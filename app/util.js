@@ -86,3 +86,15 @@ export function snippet(q) {
   }
   return snipCache.get(q.id);
 }
+
+// ---------- modal ----------
+let modal = null;
+export function openModal(fill) {
+  modal?.remove();
+  modal = h(`<div class="modal"><div class="modal-inner"><button class="modal-x" title="Close">✕</button><div class="card"></div></div></div>`);
+  document.body.append(modal);
+  modal.onclick = e => { if (e.target === modal) closeModal(); };
+  $('.modal-x', modal).onclick = closeModal;
+  fill($('.card', modal));
+}
+export function closeModal() { modal?.remove(); modal = null; }

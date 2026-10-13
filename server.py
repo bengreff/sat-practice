@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""SAT Practice, local mode: serves the app, keeps progress in progress.json, and fetches the College Board's
-practice-test PDFs for the official tests (browsers can't download those directly from another site).
+"""SAT Practice, local mode: serves the app, keeps progress in progress.json, and shares the downloaded question bank
+with other browsers on this computer.
 
     python3 server.py [--port 8617] [--no-browser]
 
@@ -8,19 +8,16 @@ Saves are merged into progress.json (never overwritten wholesale), a backup is t
 starting a second copy just opens the running one, and a port used by another program is skipped.
 Standard library only.
 """
-import argparse, datetime, http.server, json, os, re, shutil, socket, threading, time, urllib.request, webbrowser
+import argparse, datetime, http.server, json, os, shutil, socket, threading, time, urllib.request, webbrowser
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(ROOT, 'progress.json')
 BACKUPS = os.path.join(ROOT, 'backups')
-PDF_CACHE = os.path.join(ROOT, 'cache')
 SEED = os.path.join(ROOT, 'cache', 'questions.json')   # question bank saved by the first browser to download it
-PDF_NAME = re.compile(r'^(scoring-)?sat-practice-test-\d{1,2}(-answers)?-digital\.pdf$')
-CB_PDF = 'https://satsuite.collegeboard.org/media/pdf/'
 KEEP_BACKUPS = 30
-# The published website may use this local app's data (progress, questions, PDFs) when the user connects them.
+# The published website may use this local app's data (progress, questions) when the user connects them.
 WEB_ORIGINS = {'https://bengreff.github.io'}
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 LOCK = threading.Lock()
 
 
@@ -85,18 +82,6 @@ def backup(tag):
         os.remove(os.path.join(BACKUPS, old))
 
 
-def cb_pdf(name):
-    path = os.path.join(PDF_CACHE, name)
-    if not os.path.exists(path):
-        os.makedirs(PDF_CACHE, exist_ok=True)
-        req = urllib.request.Request(CB_PDF + name, headers={'User-Agent': 'Mozilla/5.0 (SAT Practice local app)'})
-        with urllib.request.urlopen(req, timeout=60) as r, open(path + '.part', 'wb') as f:
-            shutil.copyfileobj(r, f)
-        os.replace(path + '.part', path)
-    with open(path, 'rb') as f:
-        return f.read()
-
-
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=ROOT, **kw)
@@ -131,14 +116,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_error(404)
             with open(SEED, 'rb') as f:
                 return self._send(f.read(), 'application/json')
-        if path.startswith('/api/cb/'):
-            name = path[len('/api/cb/'):]
-            if not PDF_NAME.match(name):
-                return self.send_error(404)
-            try:
-                return self._send(cb_pdf(name), 'application/pdf')
-            except Exception as e:
-                return self.send_error(502, f'Could not download from the College Board: {e}')
         if path.startswith(('/progress.json', '/backups', '/cache', '/.git')):
             return self.send_error(404)
         super().do_GET()

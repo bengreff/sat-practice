@@ -78,7 +78,7 @@ function sprKeysFromRationale(r) {
 
 export function normalize(meta, d, section) {
   const q = {
-    id: meta.questionId, section, band: meta.score_band_range_cd, difficulty: DIFFICULTY[meta.score_band_range_cd],
+    id: meta.questionId, ext: meta.external_id || meta.ibn, section, band: meta.score_band_range_cd, difficulty: DIFFICULTY[meta.score_band_range_cd],
     domain: meta.primary_class_cd_desc, skill: (meta.skill_desc || '').trim(), updated: meta.updateDate,
   };
   if (d.item_id) { // older format: math rendered as images, answers in `answer`
@@ -151,6 +151,28 @@ export async function syncBank({ onProgress = () => {}, onQuestion = () => {}, s
 }
 
 export async function bankInfo() { return metaGet('bankSynced'); }
+
+// Questions the College Board marks "active": the ones used on the Bluebook practice tests. The list holds the
+// College Board's ids, so questions downloaded before ids were kept get them from the (small) question lists.
+// Returns the list, refreshed weekly; patch(questions) is called with any questions that gained an id.
+export async function refreshLive(questions, patch) {
+  const info = await metaGet('live');
+  const missing = questions.filter(q => !q.ext);
+  if (info && Date.now() - info.t < 7 * 864e5 && !missing.length) return info;
+  const r = await fetch(API.replace(/digital\/$/, 'lookup'));
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const lk = await r.json();
+  if (missing.length) {
+    const ext = new Map();
+    for (const s of SECTIONS) for (const m of await post('get-questions', { asmtEventId: 99, test: s.test, domain: s.domains }))
+      ext.set(m.questionId, m.external_id || m.ibn);
+    const changed = missing.filter(q => ext.get(q.id)).map(q => Object.assign(q, { ext: ext.get(q.id) }));
+    if (changed.length) { await idbPutMany('questions', changed); patch(changed); }
+  }
+  const live = { t: Date.now(), ids: [...(lk.mathLiveItems || []), ...(lk.readingLiveItems || [])] };
+  await metaSet('live', live);
+  return live;
+}
 
 // Move the downloaded bank to another device without downloading it again.
 export async function exportBank() {

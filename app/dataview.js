@@ -1,8 +1,6 @@
-// Data tab: question bank status, progress export/import, stored PDFs, reset, installing elsewhere.
-import { state, onServer, onWebsite, linked, wantsLink, setWantsLink, exportState, importState, resetProgress, idbClear, metaGet } from './store.js';
+// Data tab: question bank status, progress export/import, storage, reset, installing elsewhere.
+import { state, onServer, onWebsite, linked, wantsLink, setWantsLink, exportState, importState, resetProgress, idbClear, idbCount, metaGet } from './store.js';
 import { bank } from './data.js';
-import { officialTests } from './scoring.js';
-import { cachedPdf } from './official.js';
 import { $, esc, fmtDate, toast } from './util.js';
 import { exportBank, importBank } from './bank.js';
 import { addQuestions } from './data.js';
@@ -12,7 +10,7 @@ export const WEB_URL = 'https://bengreff.github.io/sat-practice/';
 
 export async function renderData(view, { resync, reload }) {
   const info = await metaGet('bankSynced');
-  let pdfs = 0; for (const t of officialTests()) if (await cachedPdf(t)) pdfs++;
+  const pdfs = await idbCount('files').catch(() => 0);   // left over from the old official-test feature
   const est = navigator.storage?.estimate ? await navigator.storage.estimate() : null;
   view.innerHTML = `
     <div class="panel"><h3>Question bank</h3>
@@ -24,7 +22,7 @@ export async function renderData(view, { resync, reload }) {
       <p><button class="btn-lite" id="d-bank-export">Export questions file</button>
         <label class="btn-lite filebtn">Import questions file<input type="file" id="d-bank-import" accept=".json,application/json" hidden></label></p></div>
     ${onWebsite ? `<div class="panel"><h3>Local app on this computer</h3>
-      <p>${linked ? '<b>Connected.</b> This website is using your local app\'s progress, questions and test PDFs.'
+      <p>${linked ? '<b>Connected.</b> This website is using your local app\'s progress and questions.'
         : wantsLink() ? 'Set to connect, but the local app isn\'t running. Start it, then reload this page.'
         : 'If you installed the local app on this computer, connect it to use the same progress and questions here. Your browser may ask to allow access to apps on this device.'}</p>
       <p><button class="btn-lite" id="d-link">${wantsLink() ? 'Disconnect' : 'Connect to the local app'}</button></p></div>`
@@ -36,12 +34,12 @@ export async function renderData(view, { resync, reload }) {
         To move progress between devices, export a file here and import it on the other device; imports merge, so nothing is lost.</p>
       <p><button class="btn-lite" id="d-export">Export progress file</button>
         <label class="btn-lite filebtn">Import progress file<input type="file" id="d-import" accept=".json,application/json" hidden></label></p></div>
-    <div class="panel"><h3>Storage</h3>
-      <p>${pdfs} official test PDF${pdfs === 1 ? '' : 's'} stored${est ? ` · about ${Math.round(est.usage / 1e6)} MB used by this app` : ''}.</p>
-      <p><button class="btn-lite" id="d-pdfs">Remove stored PDFs</button></p></div>
+    ${est || pdfs ? `<div class="panel"><h3>Storage</h3>
+      <p>${est ? `About ${Math.round(est.usage / 1e6)} MB used by this app.` : ''}${pdfs ? ` ${pdfs} test PDF${pdfs === 1 ? '' : 's'} from an earlier version are still stored.` : ''}</p>
+      ${pdfs ? '<p><button class="btn-lite" id="d-pdfs">Remove stored PDFs</button></p>' : ''}</div>` : ''}
     <div class="panel"><h3>Use it on another device</h3>
       <p><b>Any browser, phone included:</b> <a href="${WEB_URL}">${WEB_URL}</a> (downloads the questions on first open).</p>
-      <p><b>Local app</b> (saves progress to a file and downloads official test PDFs automatically; needs Python 3):</p>
+      <p><b>Local app</b> (saves progress to a file; needs Python 3):</p>
       <p class="small">Mac / Linux, in Terminal:</p><pre>curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh | bash</pre>
       <p class="small">Windows, in PowerShell:</p><pre>irm https://raw.githubusercontent.com/${REPO}/main/install.ps1 | iex</pre></div>
     <div class="panel danger"><h3>Reset</h3>
@@ -63,7 +61,7 @@ export async function renderData(view, { resync, reload }) {
     try { const r = await importState(f); toast(`Imported: ${r.added} new answers merged.`); reload(); }
     catch (err) { toast('That file could not be imported: ' + err.message); }
   };
-  $('#d-pdfs', view).onclick = async () => { await idbClear('files'); toast('Stored PDFs removed.'); renderData(view, { resync, reload }); };
+  $('#d-pdfs', view)?.addEventListener('click', async () => { await idbClear('files'); toast('Stored PDFs removed.'); renderData(view, { resync, reload }); });
   $('#d-reset', view).onclick = async () => {
     if (!confirm('Erase all answers, notes, flags and tests on this device?')) return;
     try { await resetProgress(); toast('Progress reset.'); reload(); } catch (err) { toast(err.message); }

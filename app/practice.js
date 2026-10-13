@@ -54,12 +54,12 @@ export function renderPractice(view) {
     view.dataset.built = 1;
     view.innerHTML = `
       ${welcomed() ? '' : `<div class="panel welcome" id="p-welcome"><h3>Welcome to SAT Practice</h3>
-        <p>Every question from the College Board's SAT Suite Question Bank, sorted into seven difficulty bands, plus mock tests
-          and the official practice tests.</p>
+        <p>Every question from the College Board's SAT Suite Question Bank, sorted into seven difficulty bands, plus practice
+          tests in the digital SAT format.</p>
         <ul>
           <li><b>Practice</b>: answer, check, read the official explanation. Keys: A–D, Enter, F to flag.
             Use <b>Practice settings</b> to choose bands, domains and skills.</li>
-          <li><b>Tests</b>: adaptive mock tests and College Board practice tests 4–11, timed and scored.</li>
+          <li><b>Tests</b>: digital SAT practice tests with adaptive module 2s, or any module on its own, timed and scored.</li>
           <li><b>Plan</b>: enter a score report to get a practice setup aimed at your weak spots.</li>
           <li>Questions download in the background the first time (about 20 minutes), hardest first. You can start right away.</li>
         </ul>

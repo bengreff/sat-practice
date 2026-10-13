@@ -1,7 +1,6 @@
 import { loadState, onSync, onServer, onWebsite, linked, api, findLocalApp, setWantsLink, idbGetAll, idbPutMany, metaGet, metaSet } from './store.js';
 import { bank, addQuestions } from './data.js';
 import { syncBank } from './bank.js';
-import { loadOfficial } from './scoring.js';
 import { renderPractice, refreshPractice, nextQuestion } from './practice.js';
 import { renderTests, testRunning } from './tests.js';
 import { renderStats } from './stats.js';
@@ -102,7 +101,6 @@ onSync(({ serverOk }) => {
   if (onWebsite && new URLSearchParams(location.search).has('link')) { setWantsLink(true); history.replaceState(null, '', location.pathname); }
   if (onWebsite) await findLocalApp();
   await loadState();
-  await loadOfficial().catch(e => console.warn('official tests', e));
   addQuestions(await idbGetAll('questions'));
   // with a local app: take its saved question bank if this browser has fewer questions
   if (onServer) {

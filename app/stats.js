@@ -1,8 +1,7 @@
 // Stats tab: tiles, estimated scores, band / trend charts, category breakdown, test history.
 import { state } from './store.js';
 import { bank, attemptsById, structure } from './data.js';
-import { estimateFromPractice, scaledFromFraction, EASY_ROUTE_CAP } from './scoring.js';
-import { officialMid } from './official.js';
+import { estimateFromPractice } from './scoring.js';
 import { $, esc, pct, fmtSec, fmtDay, SECTIONS } from './util.js';
 
 export function renderStats(view, { browseSkill }) {
@@ -16,8 +15,8 @@ export function renderStats(view, { browseSkill }) {
   // estimated scores from practice accuracy
   const est = {};
   for (const [key, sec] of [['rw', 'Reading & Writing'], ['math', 'Math']]) {
-    const e = estimateFromPractice(withBand.filter(x => x.section === sec));
-    est[key] = e && { score: Math.min(scaledFromFraction(key, e.f), e.route === 'easy' ? EASY_ROUTE_CAP : 800), route: e.route };
+    const e = estimateFromPractice(key, withBand.filter(x => x.section === sec), bank.Q);
+    est[key] = e && { score: e.scaled };
   }
   const estTotal = est.rw && est.math ? est.rw.score + est.math.score : null;
   const flagged = Object.values(state.flags).filter(f => f.on).length;
@@ -36,8 +35,8 @@ export function renderStats(view, { browseSkill }) {
 
   view.innerHTML = `
     <div class="tiles">${tiles.map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</div>
-    <p class="muted small">Estimated scores need 20+ answers per section. They weight your accuracy in each difficulty band by a typical
-      test's mix, then convert with the average official conversion table, so treat them as a rough guide.</p>
+    <p class="muted small">Estimated scores need 20+ answers per section. They use the same scoring as the practice tests (the ability
+      that best explains your right and wrong answers, given each question's difficulty), so treat them as a rough guide.</p>
     <div class="charts">
       <figure class="chart"><figcaption>Accuracy by difficulty band</figcaption>${barChart(bands)}
         <details><summary>Table</summary><table class="data"><tr><th>Band</th><th>Answered</th><th>Accuracy</th></tr>
@@ -47,9 +46,8 @@ export function renderStats(view, { browseSkill }) {
     </div>
     <h3>Tests</h3>
     ${tests.length ? `<div class="table-wrap"><table class="data"><tr><th>Date</th><th>Test</th><th>R&amp;W</th><th>Math</th><th>Total</th></tr>
-      ${tests.map(t => { const s = t.score, r = x => `${x[0]}–${x[1]}`; return t.kind === 'official'
-        ? `<tr><td>${fmtDay(t.finished)}</td><td>${esc(t.name)}</td><td>${s.rw ? r(s.rw.range) : '—'}</td><td>${s.math ? r(s.math.range) : '—'}</td><td><b>${officialMid(t) ?? '—'}</b></td></tr>`
-        : `<tr><td>${fmtDay(t.finished)}</td><td>${esc(t.name)} <span class="muted">(est.)</span></td><td>${s.rw?.scaled ?? '—'}</td><td>${s.math?.scaled ?? '—'}</td><td><b>${s.total ?? '—'}</b></td></tr>`; }).join('')}
+      ${tests.map(t => { const s = t.score || {}, r = x => x == null ? '—' : Array.isArray(x) ? `${x[0]}–${x[1]}` : x; return `<tr><td>${fmtDay(t.finished)}</td>
+        <td>${esc(t.name)}</td><td>${r(s.rw?.scaled ?? s.rw?.range)}</td><td>${r(s.math?.scaled ?? s.math?.range)}</td><td><b>${r(s.total)}</b></td></tr>`; }).join('')}
       </table></div>` : '<p class="muted">No completed tests yet.</p>'}
     ${categoryTables(A)}
     ${weakest(A)}`;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds data/official-tests.json: for each official digital SAT practice test (paper-format PDFs from
+"""Builds tools/official-tests.json (input to calibrate.py): for each official digital SAT practice test (paper-format PDFs from
 satsuite.collegeboard.org) record module page ranges, the answer key and the raw->scaled conversion table.
 No question text is stored. Needs `pdftotext` (poppler).  Usage: python3 tools/extract_official.py <pdf_dir>"""
 import json, os, re, subprocess, sys, urllib.request
@@ -114,6 +114,6 @@ if __name__ == '__main__':
                                   for (s, k, mins), pg, key in zip((('rw', 1, 39), ('rw', 2, 39), ('math', 1, 43), ('math', 2, 43)), mods, keys)],
                       'conversion': conversion(pdf(d, f'scoring-sat-practice-test-{n}-digital.pdf'))})
         print(f'test {n}: pages {mods}, {sum(map(len, keys))} keys, explanation cross-check {checked - mism}/{checked} agree')
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'official-tests.json')
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'official-tests.json')
     os.makedirs(os.path.dirname(out), exist_ok=True)
     json.dump({'source': 'College Board digital SAT practice tests (nondigital format PDFs)', 'tests': tests}, open(out, 'w'), indent=1)

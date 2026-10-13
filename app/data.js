@@ -2,7 +2,9 @@
 import { state } from './store.js';
 import { SECTIONS } from './util.js';
 
-export const bank = { Q: [], byId: new Map() };
+export const bank = { Q: [], byId: new Map(), live: new Set() };
+// On a Bluebook practice test (College Board "active" question).
+export const isLive = q => bank.live.has(q.ext);
 export function addQuestions(list) {
   for (const q of list) {
     if (!bank.byId.has(q.id)) bank.Q.push(q);

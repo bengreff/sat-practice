@@ -1,4 +1,4 @@
-// Storage: questions and PDFs in IndexedDB; progress in localStorage, mirrored to progress.json when the
+// Storage: questions in IndexedDB; progress in localStorage, mirrored to progress.json when the
 // local server is running. Every merge is a union, so nothing recorded on any device is ever dropped.
 
 // ---------- IndexedDB ----------
@@ -27,6 +27,7 @@ const tx = async (store, mode, fn) => {
 export const idbGetAll = store => tx(store, 'readonly', s => s.getAll());
 export const idbPutMany = (store, items) => tx(store, 'readwrite', s => { items.forEach(i => s.put(i)); });
 export const idbClear = store => tx(store, 'readwrite', s => s.clear());
+export const idbCount = store => tx(store, 'readonly', s => s.count());
 export const metaGet = key => tx('meta', 'readonly', s => s.get(key));
 export const metaSet = (key, v) => tx('meta', 'readwrite', s => s.put(v, key));
 export const fileGet = key => tx('files', 'readonly', s => s.get(key));
@@ -35,7 +36,7 @@ export const fileSet = (key, v) => tx('files', 'readwrite', s => s.put(v, key));
 // ---------- progress state ----------
 // history: [{id, answer, correct, t, sec, mode: 'practice'|'mock', note?, u?}]
 // flags:   {questionId: {on, u}}
-// tests:   [{uid, kind: 'mock'|'official', ..., u}]
+// tests:   [{uid, kind: 'digital' (older versions: 'mock' | 'official'), ..., u}]
 // settings / profile: {..., u}
 const LS = 'sat-practice-state';
 export const emptyState = () => ({ version: 3, history: [], flags: {}, tests: [], settings: null, profile: null, resetAt: 0 });

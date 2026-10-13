@@ -1,14 +1,14 @@
 # SAT Practice
 
 Practice with **every question in the College Board SAT Suite Question Bank** (about 3,800 questions across all seven
-difficulty bands), take **adaptive mock tests**, and sit the **official College Board practice tests** with real timing
-and official scoring.
+difficulty bands) and take **digital SAT practice tests** built from it: the Bluebook format, adaptive second modules,
+any module on its own, and scoring modelled on the College Board's.
 
 **Open it in any browser, phone included:** **https://bengreff.github.io/sat-practice/**
 
 ![Practice question with difficulty band, flag and answer elimination](docs/practice.png)
 
-Or install the local app (saves progress to a file and fetches the official test PDFs automatically):
+Or install the local app (saves progress to a file):
 
 | System | Run this |
 |---|---|
@@ -20,9 +20,9 @@ the app without touching your progress. Python 3.8+ is required (the Windows ins
 
 ## Features
 
-| Adaptive mock test with Desmos | Official practice test with answer sheet | Stats |
-|---|---|---|
-| ![Mock test](docs/mock.png) | ![Official test](docs/official.png) | ![Stats](docs/stats.png) |
+| Practice test with Desmos | Stats |
+|---|---|
+| ![Practice test](docs/mock.png) | ![Stats](docs/stats.png) |
 
 **Practice**
 - Random questions from a pool you define: sections, difficulty bands 1–7, domains and skills (each with a focus
@@ -34,14 +34,16 @@ the app without touching your progress. Python 3.8+ is required (the Windows ins
   decimals that fill every answer slot).
 
 **Tests**
-- *Adaptive practice tests* assembled from the bank in the digital SAT format: Reading and Writing (2 × 27 questions,
-  32 min each) and Math (2 × 22, 35 min each), with a harder or easier second module depending on the first.
-- *Official practice tests 4–11*: the College Board's released tests, shown page by page next to an answer sheet,
-  timed like the paper format (39 / 43 minutes per module), and scored with each test's own answer key and
-  raw-to-scaled conversion table.
-- *Module 2 only*: a quick section score from one official test's second module, with module 1 counted as all correct.
+- *Digital SAT practice tests* built from the bank in the Bluebook format: Reading and Writing (2 × 27 questions,
+  32 min each), a 10-minute break, Math (2 × 22, 35 min each). Each module has 25 / 20 scored questions plus 2 unscored
+  pretest questions, the official domain and skill mix, about a quarter grid-ins in Math, and the official order
+  (Math easiest to hardest; Reading and Writing by skill, then difficulty).
+- Module 2 is harder or easier depending on module 1, or pick any modules yourself: for example only the harder Math
+  module 2, with module 1 counted as all correct, for a quick section score. The harder Math module 2 ends with the
+  hardest questions in the bank (band 7 with the longest official solutions).
+- Optionally leaves out the questions the College Board uses on its Bluebook practice tests, so those stay fresh.
 - Test-day tools: Desmos graphing calculator, math reference sheet, mark for review, answer elimination, question
-  navigator, timers that survive reloads, a 10-minute break, save-and-resume.
+  navigator, timers that survive reloads, save-and-resume; results show the time spent on every question.
 
 **Stats**
 - Accuracy, streaks, time per question (counted only while you're on the question), estimated section and total scores.
@@ -58,7 +60,7 @@ the app without touching your progress. Python 3.8+ is required (the Windows ins
 
 ## Website + local app on the same computer
 
-If the local app is running, the website can use its progress, questions and official test PDFs, so both show the
+If the local app is running, the website can use its progress and questions, so both show the
 same data. Connect once per browser: in the local app open **Data → open it connected to this app**, or on the
 website open **Data → Connect to the local app**. Chrome asks once to allow access to apps on your device. After
 that, opening the website while the local app runs shows *Connected to your local app* in the header, and every
@@ -72,19 +74,26 @@ This repository contains **code only**. No question text is stored here.
   [SAT Suite Question Bank](https://satsuitequestionbank.collegeboard.org/). The College Board limits request rates,
   so the first full download takes about 20 minutes. You can practice while it runs, and the hardest questions
   arrive first.
-- **Official practice tests** are the PDFs the College Board publishes at
-  [satsuite.collegeboard.org](https://satsuite.collegeboard.org/practice/practice-tests/paper). The local app downloads
-  them for you. In the web version the College Board's site doesn't allow the download, so you download the PDF
-  once and choose it in the app.
-- `data/official-tests.json` holds, per official test, the page ranges of each module, the answer key and the score
-  conversion table. `tools/extract_official.py` rebuilds it from the PDFs and cross-checks every multiple-choice key
-  against the answer-explanation PDFs.
+- `tools/official-tests.json` holds the answer keys and score conversion tables of the College Board's paper practice
+  tests 4–11 (`tools/extract_official.py` rebuilds it from the PDFs). It is used only to calibrate the scoring.
 
 ## Scores
 
-Official practice tests are scored with their own conversion tables. Everything else is an **estimate**:
-adaptive-test and practice-based scores use the average of the official conversion tables, and the difficulty mix of
-each module and the routing threshold are informed guesses (the College Board doesn't publish them).
+The College Board scores the digital SAT with item response theory: each question has a difficulty, your ability is
+the value that best explains your right and wrong answers, and a table turns it into a 200–800 score. It doesn't
+publish the question parameters, so `tools/calibrate.py` estimates them from official data:
+
+- Nearly all questions of the paper practice tests 4–11 are in the question bank (940 of 960 match, every match
+  agreeing with the official key), so each test's difficulty mix is known.
+- The College Board's own question order (Math runs easiest to hardest) gives the spacing of the seven difficulty
+  bands, plus a small effect of solution length within a band.
+- The eight official conversion tables give the spread, the guessing level and the ability-to-score curve (within
+  about 10 points at 700+).
+- Routing follows the Technical Manual: the cut is the median student; the easier module 2 is set so that a student
+  just below the cut who gets everything right reaches 580, the documented maximum; the harder module 2 targets the
+  students routed to it.
+
+So scores are estimates. Treat them as within a few tens of points, as with any practice test.
 
 ## Running from a clone
 
