@@ -78,9 +78,16 @@ export function upgrade(s) {
 // ---------- persistence ----------
 // onServer: progress is kept by a local app, either the one serving this page, or (on the website) the local app
 // on this computer once the user has connected them. `api()` builds URLs for whichever it is.
-export const onWebsite = location.hostname.endsWith('github.io');
-export let onServer = location.protocol.startsWith('http') && !onWebsite;
-export let linked = false;
+// onWebsite: served by anything else (GitHub Pages or any static host).
+export let onServer = false, onWebsite = true, linked = false;
+export async function detectServer() {
+  if (!location.protocol.startsWith('http')) return false;
+  try {
+    const r = await fetch('api/ping', { cache: 'no-store', signal: AbortSignal.timeout(2000) });
+    if (r.ok && (await r.json()).app === 'sat-practice') { onServer = true; onWebsite = false; return true; }
+  } catch { /* a static host: no local app here */ }
+  return false;
+}
 let apiBase = '';
 export const api = path => apiBase + path;
 const LINK = 'sat-practice-link-local';

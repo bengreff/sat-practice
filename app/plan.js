@@ -53,7 +53,7 @@ export function renderPlan(view, { applied }) {
   const r = state.profile?.report || {};
   const sel = (name, v) => `<select name="${esc(name)}"><option value="">—</option>${[1, 2, 3, 4, 5, 6, 7].map(n => `<option${+v === n ? ' selected' : ''}>${n}</option>`).join('')}</select>`;
   view.innerHTML = `<div class="panel">
-    <h3>Import a score report</h3>
+    <h3>Your score report</h3>
     <p class="small">Enter your scores from a real or practice SAT. Under <b>Knowledge and Skills</b>, the score report shows each
       domain as a bar of up to 7 filled segments; enter the number filled (optional).</p>
     <form class="plan">

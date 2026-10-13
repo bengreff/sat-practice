@@ -22,13 +22,26 @@ const RATIONALE_FIX = {
 
 // The College Board's firewall blocks addresses that send requests too quickly, so requests are paced
 // (about 3 per second) and a block pauses the download instead of failing it.
-const GAP_MS = 350, WORKERS = 1, BLOCK_PAUSE_MS = 3 * 60e3;
+// The pauses run on a worker's timer: browsers throttle timers in background tabs (to one a minute after a few
+// minutes), which would stall a download left running in another tab; workers' timers are not throttled.
+const worker = (() => {
+  try { return new Worker(URL.createObjectURL(new Blob(['onmessage = e => setTimeout(() => postMessage(e.data), e.data.ms)']))); }
+  catch { return null; }
+})();
+const waiting = new Map();
+let waitId = 0;
+if (worker) worker.onmessage = e => { waiting.get(e.data.id)?.(); waiting.delete(e.data.id); };
+const sleep = ms => new Promise(r => {
+  if (!worker) return setTimeout(r, ms);
+  const id = ++waitId; waiting.set(id, r); worker.postMessage({ id, ms });
+});
+const GAP_MS = 350, BLOCK_PAUSE_MS = 3 * 60e3;
 class Blocked extends Error {}
 let last = 0;
 async function pace() {
   const wait = last + GAP_MS - Date.now();
   last = Math.max(Date.now(), last + GAP_MS);
-  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  if (wait > 0) await sleep(wait);
 }
 async function post(path, body, tries = 3) {
   let err;
@@ -42,7 +55,7 @@ async function post(path, body, tries = 3) {
     } catch (e) {
       // a firewall block arrives without CORS headers, so the browser only reports "Failed to fetch"
       err = e instanceof TypeError ? new Blocked(e.message) : e;
-      await new Promise(r => setTimeout(r, 1500 * (i + 1)));
+      await sleep(1500 * (i + 1));
     }
   }
   throw err;
@@ -104,50 +117,62 @@ export function normalize(meta, d, section) {
   return q;
 }
 
-// Downloads anything missing or updated. onProgress({done, total, failed, phase}); onQuestion(q) as each arrives.
-export async function syncBank({ onProgress = () => {}, onQuestion = () => {}, signal } = {}) {
+// Downloads anything missing or updated. onProgress({done, total, failed, phase, sections, eta}); onQuestion(q) as each
+// arrives. Order: what priority(item) ranks highest (item: {section, band, domain, skill}) comes first, in random order;
+// it is re-applied whenever version() changes, so changed practice settings take effect at once. After a first mixed
+// batch, the rest finishes one section at a time, so that section's tests become available sooner.
+const STARTER = 300;
+export async function syncBank({ onProgress = () => {}, onQuestion = () => {}, signal, priority = () => 0, version = () => 0 } = {}) {
   onProgress({ phase: 'Checking the College Board question bank…', done: 0, total: 0, failed: 0 });
   const have = new Map((await idbGetAll('questions')).map(q => [q.id, q.updated]));
-  const todo = [];
+  const todo = [], sections = {};
   let total = 0;
   for (const s of SECTIONS) {
     const list = await post('get-questions', { asmtEventId: 99, test: s.test, domain: s.domains });
-    total += list.length;
-    for (const m of list) if (have.get(m.questionId) !== m.updateDate) todo.push({ m, section: s.section });
+    total += list.length; sections[s.section] = list.length;
+    for (const m of list) if (have.get(m.questionId) !== m.updateDate)
+      todo.push({ m, section: s.section, r: Math.random(),
+        item: { section: s.section, band: m.score_band_range_cd, domain: m.primary_class_cd_desc, skill: (m.skill_desc || '').trim() } });
   }
-  todo.sort((a, b) => b.m.score_band_range_cd - a.m.score_band_range_cd); // hardest first
-  let done = total - todo.length, failed = 0, i = 0, batch = [];
+  await metaSet('bankTotals', sections);
+  let done = total - todo.length, failed = 0, batch = [], seen = null;
+  const start = Date.now(), startDone = done;
+  const eta = () => { const n = done - startDone, left = total - done; return n >= 5 && left ? Math.round((Date.now() - start) / n * left / 1000) : null; };
+  const progress = phase => onProgress({ phase, done, total, failed, sections, eta: eta() });
   const flush = async () => { if (batch.length) { const b = batch; batch = []; await idbPutMany('questions', b); } };
-  onProgress({ phase: 'Downloading questions', done, total, failed });
-  async function worker() {
-    while (i < todo.length && !signal?.aborted) {
-      const { m, section } = todo[i++];
-      try {
-        const d = await post('get-question', { external_id: m.external_id || m.ibn });
-        const q = normalize(m, d, section);
-        batch.push(q); onQuestion(q);
-        if (batch.length >= 25) await flush();
-        done++;
-      } catch (e) {
-        if (e instanceof Blocked) {
-          i--;                                     // retry this one after the pause
-          await flush();
-          for (let left = BLOCK_PAUSE_MS; left > 0 && !signal?.aborted; left -= 1000) {
-            onProgress({ phase: `The College Board paused downloads (too many requests). Resuming in ${Math.ceil(left / 1000)}s`, done, total, failed });
-            await new Promise(r => setTimeout(r, 1000));
-          }
-          continue;
-        }
-        failed++; done++; console.warn('question', m.questionId, e.message);
-      }
-      onProgress({ phase: 'Downloading questions', done, total, failed });
+  progress('Downloading questions');
+  while (todo.length && !signal?.aborted) {
+    const key = version() + '|' + (done - startDone >= STARTER);
+    if (key !== seen) {
+      seen = key;
+      const left = {}; for (const x of todo) left[x.section] = (left[x.section] || 0) + 1;
+      const bySection = done - startDone >= STARTER ? x => left[x.section] : () => 0;   // fewest left first
+      todo.sort((a, b) => priority(b.item) - priority(a.item) || bySection(a) - bySection(b) || a.r - b.r);
     }
+    const { m, section } = todo[0];
+    try {
+      const d = await post('get-question', { external_id: m.external_id || m.ibn });
+      const q = normalize(m, d, section);
+      batch.push(q); onQuestion(q);
+      if (batch.length >= 25) await flush();
+      todo.shift(); done++;
+    } catch (e) {
+      if (e instanceof Blocked) {                  // retry this one after the pause
+        await flush();
+        for (let left = BLOCK_PAUSE_MS; left > 0 && !signal?.aborted; left -= 1000) {
+          onProgress({ phase: `The College Board paused downloads (too many requests). Resuming in ${Math.ceil(left / 1000)}s`, done, total, failed, sections });
+          await sleep(1000);
+        }
+        continue;
+      }
+      todo.shift(); failed++; done++; console.warn('question', m.questionId, e.message);
+    }
+    progress('Downloading questions');
   }
-  await Promise.all(Array.from({ length: WORKERS }, worker));
   await flush();
-  await metaSet('bankSynced', { t: Date.now(), total, failed });
-  onProgress({ phase: failed ? `Done, ${failed} could not be downloaded (retry from Data)` : 'Done', done, total, failed });
-  return { total, failed };
+  await metaSet('bankSynced', { t: Date.now(), total, failed, sections });
+  onProgress({ phase: failed ? `Done, ${failed} could not be downloaded (retry from Data)` : 'Done', done, total, failed, sections });
+  return { total, failed, sections };
 }
 
 export async function bankInfo() { return metaGet('bankSynced'); }

@@ -1,7 +1,7 @@
 // Data tab: question bank status, progress export/import, storage, reset, installing elsewhere.
 import { state, onServer, onWebsite, linked, wantsLink, setWantsLink, exportState, importState, resetProgress, idbClear, idbCount, metaGet } from './store.js';
 import { bank } from './data.js';
-import { $, esc, fmtDate, toast } from './util.js';
+import { $, esc, fmtDate, toast, n } from './util.js';
 import { exportBank, importBank } from './bank.js';
 import { addQuestions } from './data.js';
 
@@ -14,24 +14,26 @@ export async function renderData(view, { resync, reload }) {
   const est = navigator.storage?.estimate ? await navigator.storage.estimate() : null;
   view.innerHTML = `
     <div class="panel"><h3>Question bank</h3>
-      <p><b>${bank.Q.length}</b> questions on this device${info ? `, last checked ${fmtDate(info.t)}` : ''}${info?.failed ? ` (${info.failed} failed)` : ''}.
+      <p><b>${n(bank.Q.length)}</b> questions on this device${info ? `, last checked ${fmtDate(info.t)}` : ''}${info?.failed ? ` (${info.failed} failed)` : ''}.
         Questions come straight from the College Board SAT Suite Question Bank; they are not stored in this app's code.</p>
       <p><button class="btn-lite" id="d-sync">Check for new or updated questions</button></p>
       <p class="small">The College Board limits how fast questions can be downloaded, so a full download takes about 20 minutes.
         To skip that on another device, export the questions here and import the file there.</p>
       <p><button class="btn-lite" id="d-bank-export">Export questions file</button>
         <label class="btn-lite filebtn">Import questions file<input type="file" id="d-bank-import" accept=".json,application/json" hidden></label></p></div>
-    ${onWebsite ? `<div class="panel"><h3>Local app on this computer</h3>
+    ${onWebsite && (location.origin + location.pathname).startsWith(WEB_URL) ? `<div class="panel"><h3>Local app on this computer</h3>
       <p>${linked ? '<b>Connected.</b> This website is using your local app\'s progress and questions.'
         : wantsLink() ? 'Set to connect, but the local app isn\'t running. Start it, then reload this page.'
         : 'If you installed the local app on this computer, connect it to use the same progress and questions here. Your browser may ask to allow access to apps on this device.'}</p>
       <p><button class="btn-lite" id="d-link">${wantsLink() ? 'Disconnect' : 'Connect to the local app'}</button></p></div>`
-    : `<div class="panel"><h3>Website</h3><p>Use the same progress and questions on the website version:
+    : onWebsite ? '' : `<div class="panel"><h3>Website</h3><p>Use the same progress and questions on the website version:
       <a href="${WEB_URL}?link=1" target="_blank" rel="noopener">open it connected to this app</a> (needed once per browser).</p></div>`}
     <div class="panel"><h3>Progress</h3>
       <p>${state.history.length} answers, ${state.tests.filter(t => t.finished).length} completed tests.
         ${onServer ? 'Saved to <code>progress.json</code> by the local app (and in this browser).' : 'Saved in this browser.'}
         To move progress between devices, export a file here and import it on the other device; imports merge, so nothing is lost.</p>
+      <p class="small muted">Nothing you do here is sent anywhere. The only requests go to the College Board's question bank, to
+        download questions; there are no accounts, ads or analytics.</p>
       <p><button class="btn-lite" id="d-export">Export progress file</button>
         <label class="btn-lite filebtn">Import progress file<input type="file" id="d-import" accept=".json,application/json" hidden></label></p></div>
     ${est || pdfs ? `<div class="panel"><h3>Storage</h3>
@@ -45,8 +47,7 @@ export async function renderData(view, { resync, reload }) {
     <div class="panel danger"><h3>Reset</h3>
       <p>Erase all answers, notes, flags and tests on this device${onServer ? ' (the local app keeps a backup file)' : ''}. Settings and your score plan are kept.</p>
       <p><button class="btn-lite" id="d-reset">Reset progress</button></p></div>
-    <p class="muted small">Not affiliated with or endorsed by College Board. SAT is a registered trademark of College Board.
-      Source: <a href="https://github.com/${REPO}">github.com/${REPO}</a></p>`;
+`;
   $('#d-sync', view).onclick = () => resync();
   $('#d-link', view)?.addEventListener('click', () => { setWantsLink(!wantsLink()); location.reload(); });
   $('#d-export', view).onclick = exportState;

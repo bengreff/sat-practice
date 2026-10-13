@@ -33,11 +33,11 @@ export function steps(q) {
   return (core.match(/<math|<img/g) || []).length + words(core) / 10;
 }
 const zCache = new Map();
-let zStats = null, zFor = null;
+let zStats = null, zFor = null, zLen = 0;
 // Solution length as a z-score within the question's section and band, over the questions on this device.
 export function solutionZ(q, all) {
-  if (zFor !== all || !zStats) {
-    zFor = all; zCache.clear(); zStats = {};
+  if (zFor !== all || zLen !== all.length || !zStats) {
+    zFor = all; zLen = all.length; zCache.clear(); zStats = {};
     const g = {};
     for (const x of all) (g[x.section + x.band] ||= []).push(steps(x));
     for (const [k, v] of Object.entries(g)) {

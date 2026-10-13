@@ -26,9 +26,11 @@ export const PRESETS = {
   fresh: { label: 'Unseen only', pool: { unseen: true, missed: false, correct: false, flagged: false } },
 };
 
+// In the practice settings' sections, bands, domains and skills (q may be just {section, band, domain, skill}).
+export const wanted = (q, s = settings()) => s.sections[q.section] > 0 && s.bands[q.band] > 0 &&
+  (s.domains[q.domain] ?? 1) > 0 && s.skills[q.skill] !== 0;
 export function matches(q, A, s = settings()) {
-  if (!(s.sections[q.section] > 0) || !(s.bands[q.band] > 0)) return false;
-  if ((s.domains[q.domain] ?? 1) <= 0 || s.skills[q.skill] === 0) return false;
+  if (!wanted(q, s)) return false;
   const a = A.get(q.id) || [];
   if (s.maxAsks && a.length >= s.maxAsks) return false;
   const st = status(q, a);
@@ -61,7 +63,8 @@ export function renderPractice(view) {
             Use <b>Practice settings</b> to choose bands, domains and skills.</li>
           <li><b>Tests</b>: digital SAT practice tests with adaptive module 2s, or any module on its own, timed and scored.</li>
           <li><b>Plan</b>: enter a score report to get a practice setup aimed at your weak spots.</li>
-          <li>Questions download in the background the first time (about 20 minutes), hardest first. You can start right away.</li>
+          <li>The questions download from the College Board the first time, in the background (about 20 minutes). The ones your
+            practice settings ask for come first, so you can start right away. Your answers and progress stay in this browser.</li>
         </ul>
         <button class="btn" id="p-welcome-ok">Start practicing</button></div>`}
       <div class="bar-top"><span id="p-summary"></span><button class="btn-lite" id="p-toggle">Practice settings</button></div>
@@ -80,7 +83,8 @@ export function refreshPractice() { if (!$('#p-settings')?.hidden) renderSetting
 function summary() {
   const el = $('#p-summary'); if (!el) return;
   const h = state.history, right = h.filter(x => x.correct).length;
-  el.innerHTML = `Session <b>${session.right}/${session.n}</b> · overall ${pct(right, h.length)}% of ${h.length} · pool <b>${poolOf().length}</b> questions`;
+  el.innerHTML = `Session <b>${session.right}/${session.n}</b>${h.length ? ` · overall ${pct(right, h.length)}% of ${h.length}` : ''}
+    · pool <b>${poolOf().length}</b> questions${bank.syncing ? ' (more downloading)' : ''}`;
 }
 
 export function nextQuestion() {
@@ -88,9 +92,12 @@ export function nextQuestion() {
   current = pickNext();
   if (!current) {
     card._ctl = null;
-    card.innerHTML = bank.Q.length
+    card.innerHTML = bank.Q.length && !bank.syncing
       ? `<p>No questions match your practice settings. Widen the bands or sections, allow more repeats, or pick a preset.</p>`
-      : `<p>Questions are still downloading. The first ones appear in a few seconds.</p>`;
+      : bank.syncError && !bank.Q.length
+      ? `<p>The questions couldn't be downloaded from the College Board (${esc(bank.syncError)}). Check your internet connection,
+          then reload the page or use <b>Data › Check for new or updated questions</b>.</p>`
+      : `<p>Questions are downloading. ${bank.Q.length ? 'Questions that match your settings are next.' : 'The first ones appear in a few seconds.'}</p>`;
     return;
   }
   const A = attemptsById();

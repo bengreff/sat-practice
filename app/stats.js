@@ -2,7 +2,7 @@
 import { state } from './store.js';
 import { bank, attemptsById, structure } from './data.js';
 import { estimateFromPractice } from './scoring.js';
-import { $, esc, pct, fmtSec, fmtDay, SECTIONS } from './util.js';
+import { $, esc, pct, fmtSec, fmtDay, SECTIONS, n } from './util.js';
 
 export function renderStats(view, { browseSkill }) {
   const H = state.history, A = attemptsById(), right = H.filter(x => x.correct).length;
@@ -23,7 +23,7 @@ export function renderStats(view, { browseSkill }) {
 
   const tiles = [
     ['Answered', H.length], ['Accuracy', H.length ? pct(right, H.length) + '%' : '—'],
-    ['Seen', `${A.size}/${bank.Q.length}`], ['Streak (best)', `${cur} (${best})`],
+    ['Seen', `${n(A.size)}/${n(bank.Q.length)}`], ['Streak (best)', `${cur} (${best})`],
     ['Avg time', timed.length ? fmtSec(avg) : '—'], ['Flagged', flagged],
     ['Est. R&W', est.rw ? est.rw.score : '—'], ['Est. Math', est.math ? est.math.score : '—'], ['Est. total', estTotal ?? '—'],
   ];

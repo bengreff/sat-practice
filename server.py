@@ -17,7 +17,7 @@ SEED = os.path.join(ROOT, 'cache', 'questions.json')   # question bank saved by 
 KEEP_BACKUPS = 30
 # The published website may use this local app's data (progress, questions) when the user connects them.
 WEB_ORIGINS = {'https://bengreff.github.io'}
-VERSION = '1.2.0'
+VERSION = '1.3.0'
 LOCK = threading.Lock()
 
 

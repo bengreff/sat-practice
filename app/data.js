@@ -2,7 +2,14 @@
 import { state } from './store.js';
 import { SECTIONS } from './util.js';
 
-export const bank = { Q: [], byId: new Map(), live: new Set() };
+// expected: questions per section in the College Board bank (from the last listing); syncing / syncError: download state
+export const bank = { Q: [], byId: new Map(), live: new Set(), expected: {}, syncing: false, syncError: null, version: 0 };
+export const sectionCount = section => bank.Q.reduce((n, q) => n + (q.section === section), 0);
+// Every question of the section is on this device (a few failed downloads are tolerated).
+export const sectionReady = section => {
+  const want = bank.expected[section], have = sectionCount(section);
+  return want ? have >= want * 0.98 : !bank.syncing && have > 1500;
+};
 // On a Bluebook practice test (College Board "active" question).
 export const isLive = q => bank.live.has(q.ext);
 export function addQuestions(list) {
@@ -11,6 +18,7 @@ export function addQuestions(list) {
     else bank.Q[bank.Q.indexOf(bank.byId.get(q.id))] = q;
     bank.byId.set(q.id, q);
   }
+  bank.version++;
   structureCache = null;
 }
 

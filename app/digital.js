@@ -186,7 +186,6 @@ function nextModule(t, i) {
   if (kind === 'adaptive') kind = routesHard(step.sec, responses(t.modules.find(m => m.sec === step.sec && m.kind === 'm1'))) ? 'hard' : 'easy';
   return { ...buildModule(step.sec, kind, used, t.skipLive), routed: step.kind === 'adaptive' };
 }
-export const canStart = () => bank.Q.length > 1500;
 const persist = t => { t.u = Date.now(); save(); };
 
 function finish(t) {
@@ -329,6 +328,7 @@ export const progressText = t => {
 };
 function showResults(view, t, onExit) {
   keys.ctl = null;
+  document.body.classList.remove('testing');   // the test is over: the tabs come back
   const sc = t.score, secs = ['rw', 'math'].filter(s => sc[s]);
   const modLine = s => t.modules.filter(m => m.sec === s).map(m => `${MODULE_NAME[m.kind]} ${m.right}/${scoredIds(m).length}`).join(' · ');
   const notes = secs.map(s => {

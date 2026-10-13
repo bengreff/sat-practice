@@ -1,9 +1,9 @@
 // Tests tab: digital-format practice tests from the question bank, any combination of modules; history.
 import { state, save, metaGet } from './store.js';
-import { bank, isLive, addQuestions } from './data.js';
+import { bank, isLive, addQuestions, sectionReady, sectionCount } from './data.js';
 import { refreshLive } from './bank.js';
-import { SPEC, startTest, runTest, canStart, planName, planSteps, progressText } from './digital.js';
-import { $, esc, fmtDay, toast, keys } from './util.js';
+import { SPEC, startTest, runTest, planName, planSteps, progressText } from './digital.js';
+import { $, esc, fmtDay, toast, keys, n } from './util.js';
 
 let view = null;
 export const testRunning = () => !!view?.querySelector('.runner');
@@ -48,9 +48,9 @@ export async function renderTests(v) {
             <option value="hard">harder</option><option value="easy">easier</option></select></label></div>`).join('')}
         <p class="small summary"></p>
         <p><button class="btn start">Start</button></p></details>
-      <p class="small"><label><input type="checkbox" class="skip"${skip ? ' checked' : ''}> Leave out the questions used on the
-        Bluebook practice tests</label> <span class="muted live-count">${live ? `(${live} of ${bank.Q.length} questions)` : liveTried ? '(list unavailable)' : '(checking…)'}</span></p>
-      ${canStart() ? '' : '<p class="muted small">Available once more questions have downloaded.</p>'}
+      <p class="small"><label><input type="checkbox" class="skip"${skip ? ' checked' : ''}> Leave out the questions the College Board
+        uses on its Bluebook practice tests, so those tests stay new to you</label> <span class="muted live-count">${liveText(live)}</span></p>
+      <p class="small avail" hidden></p>
     </div>
     <h3>Completed tests</h3>
     ${done.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Date</th><th>Test</th><th>R&amp;W</th><th>Math</th><th>Total</th></tr></thead><tbody>
@@ -71,13 +71,13 @@ export async function renderTests(v) {
       custom[sec] = { m1, m2: sel.value || null };
     }
     $('.summary', builder).textContent = describe(custom);
-    $('.start', builder).disabled = !planSteps(custom).length;
+    refreshTests();
   };
   builder.querySelectorAll('.brow').forEach(row => { $('.m2', row).value = custom[row.dataset.sec].m2 || ''; });
   builder.querySelectorAll('input, select').forEach(el => el.onchange = read);
   read();
   const begin = plan => {
-    if (!canStart()) return toast('Still downloading questions. Try again in a minute.');
+    if (!planReady(plan)) return toast('Tests need every question of their sections. Wait for the download to finish.');
     run(startTest(structuredClone(plan), getSkip()));
   };
   $('.start', builder).onclick = () => begin(custom);
@@ -98,10 +98,30 @@ export async function renderTests(v) {
   }
 }
 
+const liveText = live => live ? `(${n(live)} of the ${n(bank.Q.length)} questions)` : liveTried ? '(the list is unavailable right now)' : '(checking…)';
+// A test needs every question of its sections, so its modules can follow the official mix.
+const planSections = plan => [...new Set(planSteps(plan).map(s => SPEC[s.sec].section))];
+const planReady = plan => planSections(plan).every(sectionReady);
+// Enables what can start now; shows download progress for the rest. Cheap: called while questions arrive.
+export function refreshTests() {
+  if (!view || testRunning() || !view.querySelector('.avail')) return;
+  view.querySelectorAll('[data-preset]').forEach(b => { b.disabled = !planReady(PRESETS[+b.dataset.preset][1]); });
+  const start = $('.builder .start', view);
+  if (start) start.disabled = !planSteps(custom).length || !planReady(custom);
+  const waiting = ['Reading & Writing', 'Math'].filter(s => !sectionReady(s));
+  const avail = $('.avail', view);
+  avail.hidden = !waiting.length;
+  avail.textContent = waiting.length ? `Tests unlock when their section's questions have downloaded: ${waiting.map(s =>
+    `${s === 'Math' ? 'Math' : 'Reading and Writing'} ${n(sectionCount(s))} of ${bank.expected[s] ? n(bank.expected[s]) : '…'}`).join(', ')}.${
+    bank.syncError ? ' The download stopped; retry it from the Data tab.' : bank.syncing ? ' The download continues in the background.' : ''}` : '';
+  const lc = $('.live-count', view), live = bank.Q.filter(isLive).length;
+  if (lc && live) lc.textContent = liveText(live);
+}
+
 function describe(plan) {
   const steps = planSteps(plan);
   if (!steps.length) return 'Choose at least one module.';
-  const n = steps.reduce((a, s) => a + SPEC[s.sec].op + SPEC[s.sec].pretest, 0), min = steps.reduce((a, s) => a + SPEC[s.sec].minutes, 0);
+  const qs = steps.reduce((a, s) => a + SPEC[s.sec].op + SPEC[s.sec].pretest, 0), min = steps.reduce((a, s) => a + SPEC[s.sec].minutes, 0);
   const notes = [];
   for (const sec of ['rw', 'math']) {
     const p = plan[sec]; if (!p) continue;
@@ -110,7 +130,7 @@ function describe(plan) {
     if (p.m1 && !p.m2) notes.push(`${SPEC[sec].name} is scored from module 1 alone`);
   }
   const brk = new Set(steps.map(s => s.sec)).size > 1 ? ' plus a 10-minute break' : '';
-  return `${planName(plan)}: ${n} questions, ${min} minutes${brk}.${notes.length ? ' ' + notes.join('; ') + '.' : ''}`;
+  return `${planName(plan)}: ${qs} questions, ${min} minutes${brk}.${notes.length ? ' ' + notes.join('; ') + '.' : ''}`;
 }
 
 function run(t) {

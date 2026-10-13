@@ -1,13 +1,13 @@
-import { loadState, onSync, onServer, onWebsite, linked, api, findLocalApp, setWantsLink, idbGetAll, idbPutMany, metaGet, metaSet } from './store.js';
+import { state, loadState, onSync, onServer, onWebsite, linked, api, detectServer, findLocalApp, setWantsLink, idbGetAll, idbPutMany, metaGet, metaSet } from './store.js';
 import { bank, addQuestions } from './data.js';
 import { syncBank } from './bank.js';
-import { renderPractice, refreshPractice, nextQuestion } from './practice.js';
-import { renderTests, testRunning } from './tests.js';
+import { renderPractice, refreshPractice, nextQuestion, settings, wanted } from './practice.js';
+import { renderTests, testRunning, refreshTests } from './tests.js';
 import { renderStats } from './stats.js';
 import { renderBrowse, bf } from './browse.js';
 import { renderPlan } from './plan.js';
 import { renderData } from './dataview.js';
-import { $, $$, keys, toast } from './util.js';
+import { $, $$, keys, toast, n } from './util.js';
 
 const VIEWS = ['practice', 'tests', 'stats', 'browse', 'plan', 'data'];
 let current = null;
@@ -16,7 +16,7 @@ function show(v) {
   if (testRunning() && v !== 'tests') return toast('Use "Save & exit" to leave the test first.');
   current = v;
   for (const name of VIEWS) $('#v-' + name).hidden = name !== v;
-  $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  $$('nav button').forEach(b => { b.classList.toggle('on', b.dataset.v === v); if (b.dataset.v === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   const view = $('#v-' + v);
   if (v === 'practice') renderPractice(view);
   if (v === 'tests') renderTests(view);
@@ -32,32 +32,65 @@ function browseSkill(section, domain, skill) { Object.assign(bf, { section, doma
 $$('nav button').forEach(b => b.onclick = () => show(b.dataset.v));
 
 // ---------- question download ----------
+// Only one tab downloads (a Web Lock); it passes each batch of questions to the app's other open tabs.
 let syncing = false;
+const channel = 'BroadcastChannel' in window ? new BroadcastChannel('sat-practice-bank') : null;
+const repaint = () => {
+  if (current === 'practice') { refreshPractice(); if (!$('#pcard')?._ctl) nextQuestion(); }
+  if (current === 'tests') refreshTests();
+};
+channel?.addEventListener('message', ({ data }) => {
+  if (data.questions) addQuestions(data.questions);
+  if (data.expected) bank.expected = data.expected;
+  if (data.done) { bank.syncing = false; $('#dl').hidden = true; takeover?.abort(); }
+  repaint();
+});
 async function resync() {
   if (syncing) return toast('Already downloading.');
-  syncing = true;
+  if (!navigator.locks) return download();
+  return navigator.locks.request('sat-practice-download', { ifAvailable: true }, lock => {
+    if (lock) return download();
+    bank.syncing = true;               // another tab is on it; its questions arrive over the channel
+    $('#dl').hidden = false; $('#dl .dl-text').textContent = 'Questions are downloading in another tab of this app.';
+    // if that tab is closed before it finishes, carry on here
+    takeover = new AbortController();
+    navigator.locks.request('sat-practice-download', { signal: takeover.signal }, () => download()).catch(() => {});
+  });
+}
+let takeover = null;
+async function download() {
+  syncing = bank.syncing = true; bank.syncError = null;
   const bar = $('#dl'), label = $('#dl .dl-text'), fill = $('#dl .dl-fill');
   bar.hidden = false;
   let arrived = [], lastPaint = 0;
   const paint = () => {
-    if (arrived.length) { addQuestions(arrived); arrived = []; }
-    if (current === 'practice') { refreshPractice(); if (!$('#pcard')?._ctl) nextQuestion(); }
+    if (arrived.length) { addQuestions(arrived); channel?.postMessage({ questions: arrived, expected: bank.expected }); arrived = []; }
+    repaint();
   };
   try {
     await syncBank({
+      // what the practice settings ask for first, then the rest of their sections, then everything else
+      priority: item => wanted(item) ? 2 : settings().sections[item.section] > 0 ? 1 : 0,
+      version: () => state.settings?.u ?? 0,
       onQuestion: q => { arrived.push(q); if (Date.now() - lastPaint > 1500) { lastPaint = Date.now(); paint(); } },
       onProgress: p => {
-        label.textContent = p.total ? `${p.phase}: ${p.done} of ${p.total}${p.failed ? ` (${p.failed} failed)` : ''}` : p.phase;
+        if (p.sections) bank.expected = p.sections;
+        const left = p.eta > 90 ? `, about ${Math.round(p.eta / 60)} min left` : p.eta ? ', about a minute left' : '';
+        label.textContent = p.total ? `${p.phase}: ${n(p.done)} of ${n(p.total)}${p.failed ? ` (${p.failed} failed)` : ''}${p.phase === 'Downloading questions' ? left : ''}` : p.phase;
         fill.style.width = p.total ? (100 * p.done / p.total) + '%' : '0';
       },
     });
+    syncing = bank.syncing = false;
     paint();
+    channel?.postMessage({ done: true });
     setTimeout(() => bar.hidden = true, 2500);
     if (onServer) saveSeed();
   } catch (e) {
-    label.textContent = `Could not reach the College Board question bank (${e.message}). Check your connection; retry from the Data tab.`;
+    syncing = bank.syncing = false; bank.syncError = e.message;
+    label.textContent = `Could not reach the College Board question bank (${e.message}). Check your connection, then retry from the Data tab.`;
+    paint();
+    channel?.postMessage({ done: true });
   }
-  syncing = false;
 }
 
 // Local app: the first browser to download the bank leaves a copy with the server for other browsers here.
@@ -98,10 +131,12 @@ onSync(({ serverOk }) => {
 
 // ---------- boot ----------
 (async () => {
+  await detectServer();
   if (onWebsite && new URLSearchParams(location.search).has('link')) { setWantsLink(true); history.replaceState(null, '', location.pathname); }
   if (onWebsite) await findLocalApp();
   await loadState();
   addQuestions(await idbGetAll('questions'));
+  bank.expected = (await metaGet('bankTotals')) || (await metaGet('bankSynced'))?.sections || {};
   // with a local app: take its saved question bank if this browser has fewer questions
   if (onServer) {
     const info0 = await metaGet('bankSynced');
