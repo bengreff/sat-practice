@@ -53,6 +53,9 @@ Bluebook format. It runs in your browser, phone included, with no account.
 
 **Plan**: enter a score report (section scores and the Knowledge and Skills bars) to get a suggested practice setup.
 
+**Anywhere**: install it as an app on a phone or computer (Install app, or Share › Add to Home Screen on iPhone), make the
+question text larger or smaller, and report a problem with any question from its **Report** link.
+
 **Your data**: everything stays in your browser. Nothing is sent anywhere; the only requests go to the College
 Board's question bank to download questions. There are no accounts, ads or analytics. Export a progress file under
 **Data** to move to another device (imports merge, so nothing is lost), or export the questions so another device

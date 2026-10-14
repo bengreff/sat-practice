@@ -121,3 +121,38 @@ export function confirmBox(message, { ok = 'OK', cancel = 'Cancel', danger = fal
 }
 // Lets a view switch tabs (set by main.js).
 export const nav = { go: () => {} };
+
+// ---------- text size (tests, practice and review; like Bluebook's zoom) ----------
+const SCALES = [0.85, 1, 1.15, 1.3, 1.5, 1.75], SCALE_KEY = 'sat-text-scale';
+export const textScale = {
+  get() { try { const v = +localStorage.getItem(SCALE_KEY); return SCALES.includes(v) ? v : 1; } catch { return 1; } },
+  apply(v = textScale.get()) { document.documentElement.style.setProperty('--qscale', v); },
+  step(d) {
+    const i = Math.max(0, Math.min(SCALES.length - 1, SCALES.indexOf(textScale.get()) + d)), v = SCALES[i];
+    try { localStorage.setItem(SCALE_KEY, v); } catch { /* private window */ }
+    textScale.apply(v); return v;
+  },
+  label: v => Math.round(v * 100) + '%',
+};
+
+// ---------- installing as an app ----------
+// Chrome and Edge offer installation through `beforeinstallprompt`; iPhone and iPad use Share › Add to Home Screen.
+export const install = {
+  event: null,
+  standalone: () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
+  ios: () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+  async prompt() {
+    const e = install.event; if (!e) return false;
+    install.event = null; e.prompt();
+    return (await e.userChoice).outcome === 'accepted';
+  },
+};
+addEventListener('beforeinstallprompt', e => { install.event = e; });
+addEventListener('appinstalled', () => { install.event = null; });
+
+// ---------- feedback: GitHub issue forms (.github/ISSUE_TEMPLATE) with the details filled in ----------
+const ISSUES = 'https://github.com/bengreff/sat-practice/issues/new';
+export const reportQuestionURL = q => `${ISSUES}?${new URLSearchParams({ template: 'question.yml', title: `Question ${q.id}: `, question: q.id,
+  where: `${q.section} · ${q.domain} · ${q.skill} · band ${q.band}` })}`;
+export const reportProblemURL = () => `${ISSUES}?${new URLSearchParams({ template: 'problem.yml',
+  device: navigator.userAgent.replace(/\s*\(KHTML, like Gecko\)/, '').slice(0, 200) })}`;

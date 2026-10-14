@@ -7,7 +7,7 @@ import { renderStats } from './stats.js';
 import { renderBrowse, bf } from './browse.js';
 import { renderPlan } from './plan.js';
 import { renderData } from './dataview.js';
-import { $, $$, keys, toast, n, nav, closeModal } from './util.js';
+import { $, $$, keys, toast, n, nav, closeModal, textScale, install, reportProblemURL } from './util.js';
 
 const VIEWS = ['practice', 'tests', 'stats', 'browse', 'plan', 'data'];
 let current = null;
@@ -130,6 +130,15 @@ onSync(({ serverOk }) => {
   el.textContent = onServer && !serverOk ? 'Not saved to disk (local app offline), retrying' : linked ? 'Connected to your local app' : '';
   el.classList.toggle('linked', linked && serverOk);
 });
+
+// ---------- install button, feedback link, text size ----------
+textScale.apply();
+$('#report-link').href = reportProblemURL();
+const installBtn = $('#install');
+const paintInstall = () => { installBtn.hidden = !install.event || install.standalone(); };
+addEventListener('beforeinstallprompt', () => setTimeout(paintInstall));
+addEventListener('appinstalled', () => { installBtn.hidden = true; toast('Installed. Open SAT Practice from your home screen or app list.'); });
+installBtn.onclick = async () => { await install.prompt(); paintInstall(); };
 
 // ---------- boot ----------
 (async () => {

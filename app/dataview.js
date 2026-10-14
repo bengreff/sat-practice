@@ -1,7 +1,7 @@
 // Data tab: question bank status, progress export/import, storage, reset, installing elsewhere.
 import { state, onServer, onWebsite, linked, wantsLink, setWantsLink, exportState, importState, resetProgress, idbClear, idbCount, metaGet } from './store.js';
 import { bank } from './data.js';
-import { $, esc, fmtDate, toast, n } from './util.js';
+import { $, esc, fmtDate, toast, n, install, reportProblemURL } from './util.js';
 import { exportBank, importBank } from './bank.js';
 import { addQuestions } from './data.js';
 
@@ -39,6 +39,16 @@ export async function renderData(view, { resync, reload }) {
     ${est || pdfs ? `<div class="panel"><h3>Storage</h3>
       <p>${est ? `About ${Math.round(est.usage / 1e6)} MB used by this app.` : ''}${pdfs ? ` ${pdfs} test PDF${pdfs === 1 ? '' : 's'} from an earlier version are still stored.` : ''}</p>
       ${pdfs ? '<p><button class="btn-lite" id="d-pdfs">Remove stored PDFs</button></p>' : ''}</div>` : ''}
+    <div class="panel"><h3>Install as an app</h3>
+      <p>${install.standalone() ? 'You are using the installed app.'
+        : install.event ? 'Add SAT Practice to your home screen or app list. It opens in its own window and works offline once the questions are downloaded.'
+        : install.ios() ? 'On iPhone or iPad: tap the Share button in Safari, then <b>Add to Home Screen</b>.'
+        : 'In Chrome or Edge, use the install icon in the address bar, or the browser menu › <b>Install SAT Practice</b> (on Android: <b>Add to Home screen</b>).'}</p>
+      ${install.event && !install.standalone() ? '<p><button class="btn" id="d-install">Install app</button></p>' : ''}</div>
+    <div class="panel"><h3>Feedback</h3>
+      <p>Found a wrong answer key, a question that doesn't display properly, or a bug? Every question has a <b>Report</b> link next to
+        its number. For anything else: <a href="${reportProblemURL()}" target="_blank" rel="noopener">report a problem or suggest something</a>
+        (on GitHub; a free account is needed).</p></div>
     <div class="panel"><h3>Use it on another device</h3>
       <p><b>Any browser, phone included:</b> <a href="${WEB_URL}">${WEB_URL}</a> (downloads the questions on first open).</p>
       <p><b>Local app</b> (saves progress to a file; needs Python 3):</p>
@@ -49,6 +59,7 @@ export async function renderData(view, { resync, reload }) {
       <p><button class="btn-lite" id="d-reset">Reset progress</button></p></div>
 `;
   $('#d-sync', view).onclick = () => resync();
+  $('#d-install', view)?.addEventListener('click', async () => { if (await install.prompt()) renderData(view, { resync, reload }); });
   $('#d-link', view)?.addEventListener('click', () => { setWantsLink(!wantsLink()); location.reload(); });
   $('#d-export', view).onclick = exportState;
   $('#d-bank-export', view).onclick = async () => toast(`Exported ${await exportBank()} questions.`);

@@ -6,7 +6,7 @@
 import { state, save } from './store.js';
 import { bank, isLive } from './data.js';
 import { bodyHTML, wireBody } from './question.js';
-import { $, esc, uid, shuffle, isCorrect, weightedPick, keys, fixMath, toast, confirmBox } from './util.js';
+import { $, esc, uid, shuffle, isCorrect, weightedPick, keys, fixMath, toast, confirmBox, textScale, reportQuestionURL, reportProblemURL } from './util.js';
 import { CAL, itemParams, sectionScore, routesHard, bandMix, assumedModule1, solutionZ } from './scoring.js';
 import { countdown, toggleCalculator, toggleReference, closeTools } from './tools.js';
 
@@ -275,7 +275,10 @@ export function runTest(view, t, onExit, onFinish) {
         ${rw ? '<button class="tool-btn" data-t="hl" aria-pressed="false" title="Select passage text to highlight it; click a highlight to remove it">✎ Highlight</button>'
           : '<button class="tool-btn" data-t="calc">Calculator</button><button class="tool-btn" data-t="ref">Reference</button>'}
         <span class="menu-wrap"><button class="tool-btn" data-t="more" aria-haspopup="true">More ▾</button>
-          <span class="menu" hidden><button data-t="keys">Keyboard shortcuts</button><button data-t="exit">Save and exit</button></span></span>
+          <span class="menu" hidden><span class="menu-row">Text size <span><button data-t="ts-" aria-label="Smaller text">A−</button>
+            <b class="ts-val">${textScale.label(textScale.get())}</b><button data-t="ts+" aria-label="Larger text">A+</button></span></span>
+            <button data-t="keys">Keyboard shortcuts</button><a data-t="report" href="#" target="_blank" rel="noopener">Report a problem with this question</a>
+            <button data-t="exit">Save and exit</button></span></span>
       </div></div>
     <div class="run-main"></div>
     <div class="run-bottom"><span class="run-name">${esc(t.name)}${timingLabel(t) ? ` · ${timingLabel(t)}` : ''}</span>
@@ -288,11 +291,14 @@ export function runTest(view, t, onExit, onFinish) {
   let hlMode = false;
   view.querySelectorAll('[data-t]').forEach(b => b.onclick = e => {
     const k = b.dataset.t; e.stopPropagation();
+    if (k === 'report') { menu.hidden = true; return; }   // a real link, opened by the browser
+    if (k !== 'ts-' && k !== 'ts+' && k !== 'more') menu.hidden = true;
     if (k === 'calc') toggleCalculator();
     if (k === 'ref') toggleReference();
     if (k === 'dir') pop('.dirpop');
     if (k === 'more') menu.hidden = !menu.hidden;
     if (k === 'keys') { menu.hidden = true; pop('.keypop', true); }
+    if (k === 'ts-' || k === 'ts+') $('.ts-val', view).textContent = textScale.label(textScale.step(k === 'ts+' ? 1 : -1));
     if (k === 'hl') { hlMode = !hlMode; b.classList.toggle('on', hlMode); b.setAttribute('aria-pressed', hlMode); main.classList.toggle('hl-mode', hlMode); }
     if (k === 'exit') { leaveQ(); timer.stop(); closeTools(); persist(t); onExit(); }
   });
@@ -319,16 +325,18 @@ export function runTest(view, t, onExit, onFinish) {
     $('.navbtn', view).textContent = i < m.ids.length ? `Question ${i + 1} of ${m.ids.length} ▴` : 'Review ▴';
     $('.back', view).disabled = i === 0;
     $('.next', view).textContent = i >= m.ids.length ? 'Submit' : 'Next';
-    if (i >= m.ids.length) return review();
+    const report = $('[data-t=report]', view);
+    if (i >= m.ids.length) { report.href = reportProblemURL(); return review(); }
     const q = bank.byId.get(m.ids[i]);
+    report.href = reportQuestionURL(q);
     // R&W passage on the left, question on the right; math grid-ins show the entry rules on the left, as in Bluebook
-    const left = rw && q.stimulus ? `<div class="stimulus hl-area">${q.stimulus}</div>` : !rw && q.type !== 'mcq' ? `<div class="spr-rules">${SPR_RULES}</div>` : '';
+    const left = rw && q.stimulus ? `<div class="stimulus hl-area zoomable">${q.stimulus}</div>` : !rw && q.type !== 'mcq' ? `<div class="spr-rules zoomable">${SPR_RULES}</div>` : '';
     main.innerHTML = `<div class="rq${left ? ' split' : ''}"${left && t.split ? ` style="--split:${t.split}fr"` : ''}>
       ${left ? `<div class="rq-left">${left}</div><div class="divider" title="Drag to resize"></div>` : ''}
       <div class="rq-right"><div class="rq-head"><span class="qnum">${i + 1}</span>
         <button class="tool mark${m.marks[q.id] ? ' on' : ''}" aria-pressed="${!!m.marks[q.id]}"></button><span class="grow"></span>
         ${q.type === 'mcq' ? `<button class="tool abc${m.elim ? ' on' : ''}" aria-pressed="${!!m.elim}" title="Cross out answer choices (X)">A̶B̶C̶</button>` : ''}</div>
-        <div class="q-body">${bodyHTML(left && rw ? { ...q, stimulus: '' } : q)}</div></div></div>`;
+        <div class="q-body zoomable">${bodyHTML(left && rw ? { ...q, stimulus: '' } : q)}</div></div></div>`;
     const rq = $('.rq', main);
     if (rw && q.stimulus) { const area = $('.hl-area', main); fixMath(area); paintHighlights(area, m.hl[q.id] || []); wireHighlights(area, q); }
     rq.classList.toggle('elim-on', !!m.elim);

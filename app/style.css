@@ -83,6 +83,10 @@ table.data tr[data-open] { cursor:pointer; } table.data tr[data-open]:hover { ba
 figure { margin:12px 0; overflow-x:auto; }
 .q-body svg, .stimulus svg, .rationale svg { max-width:100%; height:auto; }
 .q-body img, .stimulus img, .rationale img { max-width:100%; }
+/* Figures at their real size: older questions declare widths a quarter to half of the image's own size. */
+.q-body img:not(.math-img), .stimulus img:not(.math-img), .rationale img:not(.math-img) { width:auto; height:auto; }
+.q-body svg[role=img], .stimulus svg[role=img], .rationale svg[role=img] { min-width:min(340px, 100%); height:auto; }
+.choice img:not(.math-img) { max-width:min(100%, 280px); }
 img.math-img { vertical-align:middle; }
 .q-body table, .stimulus table, .rationale table { border-collapse:collapse; margin:8px 0; font-size:14px; }
 .q-body td, .q-body th, .stimulus td, .stimulus th, .rationale td, .rationale th { border:1px solid var(--line); padding:4px 10px; text-align:center; }
@@ -204,11 +208,12 @@ body.testing main.wrap { max-width:none; padding:0; }
 .tool-btn { background:none; border:1px solid transparent; border-radius:8px; padding:6px 10px; cursor:pointer; color:var(--text); font-size:13px; }
 .tool-btn:hover { border-color:var(--line); } .tool-btn.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
 .menu-wrap { position:relative; }
-.menu { position:absolute; right:0; top:calc(100% + 4px); z-index:45; display:flex; flex-direction:column; min-width:190px; padding:4px;
+.menu { position:absolute; right:0; top:calc(100% + 4px); z-index:45; display:flex; flex-direction:column; min-width:250px; padding:4px;
   background:var(--card); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); }
 .menu[hidden] { display:none; }
-.menu button { background:none; border:0; text-align:left; padding:8px 10px; border-radius:6px; cursor:pointer; color:var(--text); }
-.menu button:hover { background:var(--soft); }
+.menu button, .menu a { background:none; border:0; text-align:left; padding:8px 10px; border-radius:6px; cursor:pointer; color:var(--text); text-decoration:none; font-size:14px; }
+.menu button:hover, .menu a:hover { background:var(--soft); }
+.menu-row { white-space:nowrap; }
 .timer { display:flex; align-items:center; gap:8px; font-weight:700; font-variant-numeric:tabular-nums; font-size:20px; }
 .timer.warn .t { color:var(--bad); }
 .timer.big { font-size:44px; justify-content:center; margin:8px 0 0; }
@@ -326,3 +331,13 @@ mark.hl { background:#fde68a; color:#1c1917; border-radius:2px; padding:0 1px; }
 .guide .cta { margin:22px 0; } .guide .cta .btn { font-size:16px; padding:10px 20px; text-decoration:none; display:inline-block; }
 .guide .related { border-top:1px solid var(--line); margin-top:34px; padding-top:12px; font-size:14px; }
 .guide .note { font-size:14px; color:var(--muted); }
+
+/* text size, report links, install */
+.zoomable { zoom:var(--qscale, 1); }
+.report { font-size:12px; color:var(--muted); margin-left:8px; }
+.report:hover { color:var(--accent); }
+.tsize { display:inline-flex; gap:4px; }
+.menu-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 10px; font-size:14px; }
+.menu-row span { display:inline-flex; align-items:center; gap:4px; } .menu-row button { padding:4px 8px; border:1px solid var(--line); }
+.menu-row b { min-width:3.2em; text-align:center; font-variant-numeric:tabular-nums; }
+#install { margin-left:6px; }

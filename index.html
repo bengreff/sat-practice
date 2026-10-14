@@ -27,7 +27,10 @@
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="SAT Practice">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="app/style.css">
 </head>
 <body>
@@ -43,6 +46,7 @@
       <button data-v="data">Data</button>
     </nav>
     <span id="sync"></span>
+    <button id="install" class="btn-lite small" hidden>Install app</button>
   </div>
   <div id="dl" hidden><div class="dl-fill"></div><div class="wrap dl-text"></div></div>
 </header>
@@ -67,7 +71,8 @@
     <a href="guides/sat-question-bank-practice.html">question bank practice by difficulty</a> ·
     <a href="guides/how-digital-sat-scoring-works.html">how digital SAT scoring works</a></p>
 </section>
-<footer class="wrap foot">Free and open source (<a href="https://github.com/bengreff/sat-practice">github.com/bengreff/sat-practice</a>).
+<footer class="wrap foot"><a id="report-link" href="https://github.com/bengreff/sat-practice/issues/new?template=problem.yml" target="_blank" rel="noopener">Report a problem or suggest something</a>
+  · Free and open source (<a href="https://github.com/bengreff/sat-practice">github.com/bengreff/sat-practice</a>).
   Not affiliated with or endorsed by College Board. SAT is a registered trademark of College Board; the questions come from
   its public SAT Suite Question Bank.</footer>
 <noscript><p class="wrap">SAT Practice needs JavaScript. Turn it on to practice and take tests.</p></noscript>

@@ -1,13 +1,14 @@
 // Question rendering shared by practice, review and mock tests.
 import { state, save } from './store.js';
-import { esc, fixMath, isCorrect, answerText, fmtSec, fmtDate, LETTERS } from './util.js';
+import { esc, fixMath, isCorrect, answerText, fmtSec, fmtDate, LETTERS, reportQuestionURL, textScale } from './util.js';
 
 export const isFlagged = id => !!state.flags[id]?.on;
 export function setFlag(id, on) { state.flags[id] = { on, u: Date.now() }; save(); }
 
 export function metaLine(q) {
   return `<span>${esc(q.section)} · ${esc(q.domain)} · ${esc(q.skill)}</span>
-    <span class="meta-r"><span class="band b${q.band}" title="College Board difficulty: ${q.difficulty}, score band ${q.band} of 7">Band ${q.band}</span><span class="qid">#${q.id}</span></span>`;
+    <span class="meta-r"><span class="band b${q.band}" title="College Board difficulty: ${q.difficulty}, score band ${q.band} of 7">Band ${q.band}</span><span class="qid">#${q.id}</span>
+      <a class="report" href="${reportQuestionURL(q)}" target="_blank" rel="noopener" title="Report a wrong answer key or a display problem (opens GitHub; needs a free account)">Report</a></span>`;
 }
 
 // Body markup: passage, stem, choices (or grid-in box). Choices carry a strike-out button.
@@ -91,13 +92,15 @@ export function mountPractice(card, q, { entry = null, prior = [], onNext, nextL
     <div class="meta">${metaLine(q)}</div>
     <div class="q-tools"><button class="tool flag" title="Flag for review">⚑ Flag</button>
       <label class="tool"><input type="checkbox" class="elim"> Eliminate choices</label>
+      <span class="tsize"><button class="tool" data-ts="-1" title="Smaller text" aria-label="Smaller text">A−</button><button class="tool" data-ts="1" title="Larger text" aria-label="Larger text">A+</button></span>
       <span class="elapsed" title="Time on this question (counts only while you're on this page)">0:00</span></div>
-    <div class="q-body">${bodyHTML(q)}</div>
+    <div class="q-body zoomable">${bodyHTML(q)}</div>
     <div class="actions"><button class="btn go" disabled>Check</button><span class="verdict"></span></div>
     <div class="prior" hidden></div>
     <textarea class="notes" placeholder="Notes (optional), saved automatically" hidden></textarea>
-    <div class="rat"></div>`;
+    <div class="rat zoomable"></div>`;
   const el = s => card.querySelector(s), go = el('.go');
+  card.querySelectorAll('[data-ts]').forEach(b => b.onclick = () => textScale.step(+b.dataset.ts));
   let done = false;
   const body = wireBody(el('.q-body'), q, { onChange: a => { if (!done) go.disabled = !a; } });
   const flag = el('.flag');
@@ -171,11 +174,11 @@ export function mountReview(card, q, { answer = null, struck = [], pretest = fal
   const ok = isCorrect(q, answer);
   card.innerHTML = `
     <div class="meta">${metaLine(q)}</div>
-    <div class="q-body">${bodyHTML(q)}</div>
+    <div class="q-body zoomable">${bodyHTML(q)}</div>
     <div class="actions"><span class="verdict ${pretest ? 'muted' : ok ? 'ok' : 'bad'}">${answer == null ? 'Not answered' : ok ? 'Correct' : 'Incorrect'}${
       ok ? '' : `, the answer is ${esc(answerText(q))}`}${pretest ? ' (pretest question, not scored)' : ''}</span>
       <button class="tool flag">⚑ Flag for practice</button></div>
-    <div class="rat"><div class="rationale">${q.rationale}</div></div>`;
+    <div class="rat zoomable"><div class="rationale">${q.rationale}</div></div>`;
   const body = wireBody(card.querySelector('.q-body'), q, { initial: answer, struck });
   body.lock(); body.mark(q.type === 'mcq' ? q.answer[0] : null, answer);
   card.querySelectorAll('.spr-preview, .spr-hint').forEach(e => e.remove());
