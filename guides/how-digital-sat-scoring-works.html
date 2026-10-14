@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the Digital SAT Is Scored | SAT Practice</title>
+<meta name="description" content="How the digital SAT is scored with item response theory and adaptive modules, and what the official College Board data reveals about difficulty and routing.">
+<link rel="canonical" href="https://bengreff.github.io/sat-practice/guides/how-digital-sat-scoring-works.html">
+<meta name="theme-color" content="#1d4ed8">
+<meta name="color-scheme" content="light dark">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SAT Practice">
+<meta property="og:title" content="How the Digital SAT Is Scored">
+<meta property="og:description" content="How the digital SAT is scored with item response theory and adaptive modules, and what the official College Board data reveals about difficulty and routing.">
+<meta property="og:image" content="https://bengreff.github.io/sat-practice/docs/preview.png">
+<meta property="og:url" content="https://bengreff.github.io/sat-practice/guides/how-digital-sat-scoring-works.html">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../app/style.css">
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "Article", "headline": "How the Digital SAT Is Scored", "description": "How the digital SAT is scored with item response theory and adaptive modules, and what the official College Board data reveals about difficulty and routing.", "url": "https://bengreff.github.io/sat-practice/guides/how-digital-sat-scoring-works.html", "dateModified": "2026-10-13", "author": {"@type": "Person", "name": "bengreff", "url": "https://github.com/bengreff"}, "publisher": {"@type": "Organization", "name": "SAT Practice", "url": "https://bengreff.github.io/sat-practice/"}, "isPartOf": {"@type": "WebSite", "name": "SAT Practice", "url": "https://bengreff.github.io/sat-practice/"}}
+</script>
+</head>
+<body>
+<header class="guide-top"><div class="wrap"><a class="home" href="../">SAT Practice</a>
+  <span><a class="btn-lite" href="../#practice">Practice</a> <a class="btn" href="../#tests">Take a test</a></span></div></header>
+<main class="guide">
+<h1>How the Digital SAT Is Scored</h1>
+<p class="lede">The digital SAT doesn't count right answers and look up a score. It estimates your ability from which questions
+you got right and how hard they are. Here is what the College Board publishes about it, and what its own practice tests reveal.</p>
+<h2>What the College Board publishes</h2>
+<p>The College Board's <a href="https://research.collegeboard.org/media/pdf/Digital%20SAT%20Suite%20of%20Assessments%20Technical%20Manual-FINAL.pdf">technical manual</a> describes the method:</p>
+<ul><li><b>Item response theory.</b> Each question has its own parameters (how hard it is, how well it separates stronger from
+weaker students, and how likely a guess is to be right). Multiple-choice questions use the three-parameter logistic model.</li>
+<li><b>Your ability</b> is the value that best explains your pattern of right and wrong answers across both modules (a maximum
+likelihood estimate), converted to a 200–800 section score with a table.</li>
+<li><b>Routing.</b> After module 1, a quick ability estimate from module 1 alone decides whether you get the harder or the easier
+module 2. The cut was set at the median student, so about half of test takers go each way.</li>
+<li><b>The easier route has a ceiling.</b> In the manual's simulation, a student routed to the easier Math module who answers every
+question right earns at most about 580.</li>
+<li><b>Pretest questions</b>, two in each module, don't count toward your score.</li></ul>
+<p>What it doesn't publish: each question's parameters, or a conversion table for the adaptive test. That is why no outside
+practice test can reproduce a Bluebook score exactly.</p>
+<h2>What the official practice tests reveal</h2>
+<p>The College Board's <a href="https://satsuite.collegeboard.org/practice/practice-tests/paper">paper practice tests 4–11</a> come with answer keys and raw-to-scaled conversion tables.
+Matching their questions against the question bank by their official explanations turned up a few things:</p>
+<ol><li><b>Almost all of their questions are in the question bank:</b> 940 of 960 matched, and every match agreed with the
+official answer key. So the difficulty band of nearly every question on those tests is known.</li>
+<li><b>On paper, module 2 is no harder than module 1.</b> The average difficulty band is 4.38 and 4.35 for the two Reading and
+Writing modules and 4.21 and 4.26 for Math. The paper versions aren't adaptive; only Bluebook's are.</li>
+<li><b>The difficulty bands are roughly evenly spaced.</b> Math questions on these tests run from easiest to hardest, so the
+order in which the College Board placed them shows how far apart the bands are.</li>
+<li><b>The hardest questions have the longest solutions.</b> Within the top band, the questions placed last have about twice as
+many math steps in their official explanations as the other band-7 questions.</li></ol>
+<p>Fitting a scoring model to the eight official conversion tables with these difficulties reproduces the tables to within about
+10 points for scores of 700 and above. This site uses that model for its practice tests (the method and every constant are in
+<a href="https://github.com/bengreff/sat-practice/blob/main/tools/calibrate.py">calibrate.py</a>).</p>
+<h2>What it means for your score</h2>
+<ul><li>Near the top, each missed question costs roughly 10 to 20 points. In this model, a perfect Math module 1 followed by the
+harder module 2 with one or two misses is about 790, three misses about 780, four about 760.</li>
+<li>Reaching the harder module 2 matters more than anything else in module 1: the easier route can't get you far past the 500s.</li>
+<li>Right answers on the harder module count for more than right answers on the easier one, because the questions are harder.</li>
+<li>Any practice test that isn't Bluebook, this one included, gives an estimate. Treat it as good to a few tens of points.</li></ul>
+<p class="cta"><a class="btn" href="../#tests">Take a scored practice test</a></p>
+<p class="note">Sources: College Board, <a href="https://research.collegeboard.org/media/pdf/Digital%20SAT%20Suite%20of%20Assessments%20Technical%20Manual-FINAL.pdf">Digital SAT Suite of Assessments Technical Manual</a>;
+<a href="https://satsuite.collegeboard.org/media/pdf/digital-sat-test-spec-overview.pdf">Digital SAT Suite test specifications</a>; <a href="https://satsuite.collegeboard.org/media/pdf/assessment-framework-for-digital-sat-suite.pdf">Assessment Framework</a>; paper practice tests 4–11
+and their scoring guides.</p>
+<p class="related">More guides: <a href="digital-sat-practice-test.html">Free digital SAT practice test</a> · <a href="harder-math-module-2.html">Harder Math module 2 practice</a> · <a href="sat-question-bank-practice.html">Question bank practice by difficulty</a></p>
+</main>
+<footer class="wrap foot">Free and open source (<a href="https://github.com/bengreff/sat-practice">github.com/bengreff/sat-practice</a>).
+  Not affiliated with or endorsed by College Board. SAT is a registered trademark of College Board; the questions come from
+  its public SAT Suite Question Bank.</footer>
+</body>
+</html>

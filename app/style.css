@@ -39,7 +39,9 @@ nav button.on { background:var(--card); color:var(--text); box-shadow:0 0 0 1px 
 #dl { position:relative; border-top:1px solid var(--line); font-size:13px; color:var(--muted); }
 #dl .dl-fill { position:absolute; left:0; top:0; bottom:0; width:0; background:var(--accent-soft); transition:width .3s; }
 #dl .dl-text { position:relative; padding-top:4px; padding-bottom:4px; }
-body.testing nav, body.testing #dl, body.testing .foot { display:none; }
+body.testing nav, body.testing #dl, body.testing .foot, body.testing .about { display:none; }
+.about { font-size:13px; color:var(--muted); border-top:1px solid var(--line); padding-top:12px; margin-bottom:8px; }
+.about h2 { font-size:14px; color:var(--text); margin:0 0 6px; } .about p { margin:0 0 8px; max-width:900px; }
 .foot { font-size:12px; color:var(--muted); padding-bottom:24px; } .foot a { color:inherit; }
 
 /* generic */
@@ -311,3 +313,16 @@ mark.hl { background:#fde68a; color:#1c1917; border-radius:2px; padding:0 1px; }
   .srow { grid-template-columns:1fr 50px 40px 52px; } .srow .seen { display:none; }
   nav button { padding:5px 7px; }
 }
+
+/* guide pages */
+.guide-top { border-bottom:1px solid var(--line); background:var(--bg); }
+.guide-top .wrap { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:12px; padding-bottom:12px; }
+.guide-top a { text-decoration:none; } .guide-top a.home { font-weight:700; color:var(--text); } .guide-top .btn-lite { color:var(--text); }
+.guide { max-width:760px; margin:0 auto; padding:24px 16px 40px; font-size:16px; line-height:1.65; }
+.guide h1 { font-size:30px; line-height:1.2; margin:8px 0 12px; } .guide h2 { font-size:21px; margin:30px 0 8px; }
+.guide .lede { font-size:18px; color:var(--muted); }
+.guide table { border-collapse:collapse; width:100%; font-size:15px; margin:10px 0; }
+.guide th, .guide td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+.guide .cta { margin:22px 0; } .guide .cta .btn { font-size:16px; padding:10px 20px; text-decoration:none; display:inline-block; }
+.guide .related { border-top:1px solid var(--line); margin-top:34px; padding-top:12px; font-size:14px; }
+.guide .note { font-size:14px; color:var(--muted); }
