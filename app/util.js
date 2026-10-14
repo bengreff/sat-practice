@@ -150,9 +150,13 @@ export const install = {
 addEventListener('beforeinstallprompt', e => { install.event = e; });
 addEventListener('appinstalled', () => { install.event = null; });
 
-// ---------- feedback: GitHub issue forms (.github/ISSUE_TEMPLATE) with the details filled in ----------
+// ---------- feedback: a new GitHub issue with the title and text filled in ----------
 const ISSUES = 'https://github.com/bengreff/sat-practice/issues/new';
-export const reportQuestionURL = q => `${ISSUES}?${new URLSearchParams({ template: 'question.yml', title: `Question ${q.id}: `, question: q.id,
-  where: `${q.section} · ${q.domain} · ${q.skill} · band ${q.band}` })}`;
-export const reportProblemURL = () => `${ISSUES}?${new URLSearchParams({ template: 'problem.yml',
-  device: navigator.userAgent.replace(/\s*\(KHTML, like Gecko\)/, '').slice(0, 200) })}`;
+const issue = (title, body) => `${ISSUES}?${new URLSearchParams({ title, body })}`;
+export const reportQuestionURL = q => issue(`Question ${q.id}: `,
+  `**Question:** ${q.id} (${q.section} · ${q.domain} · ${q.skill} · band ${q.band})\n\n` +
+  `**What's wrong?** (wrong answer key, wrong or confusing explanation, doesn't display properly, something else)\n\n\n` +
+  `**Details** (what you expected and what you saw; a screenshot helps):\n\n`);
+export const reportProblemURL = () => issue('',
+  `**What happened, or what would you like?**\n\n\n**Where** (Practice, Tests, score report, Stats, Browse, Plan, Data):\n\n\n` +
+  `**Browser and device:** ${navigator.userAgent.replace(/\s*\(KHTML, like Gecko\)/, '').slice(0, 200)}\n`);
